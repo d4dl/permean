@@ -1,0 +1,99 @@
+package com.d4dl.mesh;
+
+import com.sun.j3d.utils.geometry.Primitive;
+import com.sun.j3d.utils.geometry.Sphere;
+import com.sun.j3d.utils.universe.SimpleUniverse;
+
+import javax.media.j3d.*;
+import javax.vecmath.Color3f;
+import javax.vecmath.Vector3f;
+
+public class EarthSlicer {
+    private int duplicateTriangles = 0;
+
+    public static void main(String[] args) {
+        Mesh mesh = new EarthSlicer().slice();
+    }
+
+    public Mesh slice() {
+        SimpleUniverse universe = new SimpleUniverse();
+        BranchGroup group = new BranchGroup();
+
+        Color3f black = new Color3f(0.0f, 0.0f, 0.0f);
+        Color3f red = new Color3f(0.7f, .15f, .15f);
+
+
+        Appearance ap = new Appearance();
+        ap.setMaterial(new Material(red, black, red, black, 1.0f));
+
+        int primflags = Primitive.GEOMETRY_NOT_SHARED;
+
+       // Sphere sphere = new Sphere(.9f, primflags, 3500, ap);
+        float radius = 6200f;
+        //Sphere sphere = new Sphere(radius, primflags, 6500, ap);
+        Sphere sphere = new Sphere(radius, primflags, 510, ap);
+        TriangleStripArray sphereShape = (TriangleStripArray)sphere.getShape().getGeometry();
+        int totalVertexCount = sphereShape.getValidVertexCount();
+        int numStrips = sphereShape.getNumStrips();
+        int[] stripVertexCounts = new int[numStrips];
+        Mesh mesh = new Mesh();
+        sphereShape.getStripVertexCounts(stripVertexCounts);
+        int vertexCounts = 0;
+
+        for(int i=0; i < stripVertexCounts.length; i++) {
+            int vertexCountInStrip = stripVertexCounts[i];
+            for(int j=0; j < vertexCountInStrip; j++) {
+                if(j < vertexCountInStrip - 2) {//Each vertex after the first two defines a triangle.
+                    float[] triangleCoordinates = new float[9];
+                    int startingVertex = j + vertexCounts;
+                    try {
+                        sphereShape.getCoordinates(startingVertex, triangleCoordinates);
+                        Vector3f position0 = new Vector3f(triangleCoordinates[0], triangleCoordinates[1], triangleCoordinates[2]);
+                        Vector3f position1 = new Vector3f(triangleCoordinates[3], triangleCoordinates[4], triangleCoordinates[5]);
+                        Vector3f position2 = new Vector3f(triangleCoordinates[6], triangleCoordinates[7], triangleCoordinates[8]);
+                        duplicateTriangles += mesh.addTriangle(this.fromVector3f(new Vector3f[]{position0, position1, position2}, radius));
+                    } catch (Exception e) {
+                        throw new IllegalStateException("Failed building mesh on strip " + i +
+                                                        "\nvertex " + startingVertex +
+                                                        ".\nvertices in strip: " + vertexCountInStrip +
+                                                        ".\nnumStrips: " + numStrips +
+                                                        ".\nvertex index in strip: " + j +
+                                                        ".\ntotal vertexes: " + totalVertexCount, e);
+                    }
+                }
+            }
+
+            vertexCounts += vertexCountInStrip;
+        }
+
+        System.out.println("The triangle count sir:  " + mesh.getTriangles().size() + " from " + sphereShape.getClass().getName() + ". Duplicates: " + duplicateTriangles);
+//        group.addChild(sphere);
+//        Color3f light1Color = new Color3f(1f, 1f, 1f);
+//        BoundingSphere bounds = new BoundingSphere(new Point3d(0.0, 0.0, 0.0), 100.0);
+//
+//        Vector3f light1Direction = new Vector3f(4.0f, -7.0f, -12.0f);
+//        DirectionalLight light1 = new DirectionalLight(light1Color, light1Direction);
+//        light1.setInfluencingBounds(bounds);
+//        group.addChild(light1);
+//        AmbientLight ambientLight = new AmbientLight(new Color3f(.5f, .5f, .5f));
+//        ambientLight.setInfluencingBounds(bounds);
+//        group.addChild(ambientLight);
+//        universe.getViewingPlatform().setNominalViewingTransform();
+//
+//        universe.addBranchGraph(group);
+        return mesh;
+    }
+
+
+    public LatLngTriangle fromVector3f(Vector3f[] triangle, float sphereRadius) {
+        LatLng[] latLngTriangleCoords = new LatLng[3];
+        for(int i=0; i < triangle.length; i++) {
+            Vector3f position = triangle[i];
+            float lat = (float)Math.acos(position.getX() / sphereRadius); //theta
+            float lng = (float)Math.atan(position.getY() / position.getZ()); //phi
+            latLngTriangleCoords[i] = new LatLng(lat, lng);
+        }
+        return new LatLngTriangle(latLngTriangleCoords);
+    }
+
+}
