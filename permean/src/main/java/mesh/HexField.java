@@ -262,6 +262,96 @@ public class HexField {
         return lngs;
     }
 
+    public void getInterfieldTriangles(int[] interfieldTriangles) {
+        if (index > 1) { // not North or South
+            int n1i = this.getAdjacent(0).getIndex();
+            int n2i = this.getAdjacent(1).getIndex();
+            int n3i = this.getAdjacent(2).getIndex();
+            int f1 = index * 2 - 4;
+            int f2 = index * 2 - 3;
+
+            interfieldTriangles[f1 * 3 + 0] = n2i;
+            interfieldTriangles[f1 * 3 + 1] = n1i;
+            interfieldTriangles[f1 * 3 + 2] = index;
+
+            interfieldTriangles[f2 * 3 + 0] = n3i;
+            interfieldTriangles[f2 * 3 + 1] = n2i;
+            interfieldTriangles[f2 * 3 + 2] = index;
+        }
+    }
+
+    public void getInterfieldCentroids(int[] triangles, Position[] interfieldCentroids, Position[] positions, HexField[] fields) {
+        Position firstPos = positions[fields[triangles[3 * index]].getIndex()];
+        Position centroid = firstPos.centroid(
+                positions[fields[triangles[3 * index + 1]].getIndex()],
+                positions[fields[triangles[3 * index + 2]].getIndex()]
+        );
+        interfieldCentroids[index] = centroid;
+    }
+
+
+    public void getInterfieldCentroids(int[] triangles, int centroidIndex, Position[] interfieldCentroids) {
+        int fieldIndex = 3 * centroidIndex;
+        HexField secondField = parent.getFields()[triangles[fieldIndex + 1]];
+        HexField thirdField = parent.getFields()[triangles[fieldIndex + 2]];
+
+        System.out.println("Getting centroid: " + centroidIndex + " and fp index " + this.getIndex());
+        Position firstPos = parent.getPositions()[this.getIndex()];
+        Position secondPos = parent.getPositions()[secondField.getIndex()];
+        Position thirdPos = parent.getPositions()[thirdField.getIndex()];
+        Position centroid = firstPos.centroid(secondPos, thirdPos);
+        interfieldCentroids[centroidIndex] = centroid;
+    }
+
+    public void getInterfieldIndices(int[] interfieldIndices, int[] interfieldTriangles) {
+        int sides = getAdjacentFields().length;
+
+        for (int s = 0; s < sides; s += 1) {
+            interfieldIndices[6 * index + s] = getTriangleIndex(interfieldTriangles, s);
+        }
+    }
+
+    public int getTriangleIndex(int[] triangles, int side) {
+
+        int fi1 = index;
+
+        int sides = getAdjacentFields().length;
+        int fi2 = getAdjacent(side).getIndex();
+        int fi3 = getAdjacent((side + 1) % sides).getIndex();
+
+        int c = faceIndex(fi1, fi2, fi3, triangles);
+        if (c >= 0) return c;
+
+        c = faceIndex(fi2, fi1, fi3, triangles);
+        if (c >= 0) return c;
+
+        c = faceIndex(fi3, fi1, fi2, triangles);
+        if (c >= 0) return c;
+
+        throw new Error("`Could not find triangle index for faces: " + fi1 + ", " + fi2 + ", " + fi3);
+
+    }
+
+
+
+    public int faceIndex(int i, int a1, int a2, int[] ts) {
+        int f1 = i * 2 - 4;
+        int f2 = i * 2 - 3;
+        int index = -1;
+
+        if (f1 >= 0 && ((ts[f1 * 3 + 1] == a1 || ts[f1 * 3 + 1] == a2) &&
+                (ts[f1 * 3 + 0] == a1 || ts[f1 * 3 + 0] == a2))) {
+            index = f1;
+        }
+
+        if (f2 >= 0 && ((ts[f2 * 3 + 1] == a1 || ts[f2 * 3 + 1] == a2) &&
+                (ts[f2 * 3 + 0] == a1 || ts[f2 * 3 + 0] == a2))) {
+            index = f2;
+        }
+
+        return index;
+    }
+
     /**
      */
     public double[] getLats() {

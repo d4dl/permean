@@ -322,35 +322,14 @@ public class Sphere {
 
             System.out.println("Initialized interfield triangles to: " + interfieldTriangles.length + " triangles.");
             IntStream.range(0, length).parallel().forEach(f -> {
-                HexField field = this.fields[f];
-
-                if (f > 1) { // not North or South
-                    int n1i = field.getAdjacent(0).getIndex();
-                    int n2i = field.getAdjacent(1).getIndex();
-                    int n3i = field.getAdjacent(2).getIndex();
-                    int f1 = f * 2 - 4;
-                    int f2 = f * 2 - 3;
-
-                    interfieldTriangles[f1 * 3 + 0] = n2i;
-                    triangleCount.getAndIncrement();
-                    interfieldTriangles[f1 * 3 + 1] = n1i;
-                    triangleCount.getAndIncrement();
-                    interfieldTriangles[f1 * 3 + 2] = f;
-                    triangleCount.getAndIncrement();
-
-                    interfieldTriangles[f2 * 3 + 0] = n3i;
-                    triangleCount.getAndIncrement();
-                    interfieldTriangles[f2 * 3 + 1] = n2i;
-                    triangleCount.getAndIncrement();
-                    interfieldTriangles[f2 * 3 + 2] = f;
-                    triangleCount.getAndIncrement();
-                }
+                fields[f].getInterfieldTriangles(interfieldTriangles);
             });
 
         }
 
         return interfieldTriangles;
     }
+
 
     public Position[] getInterfieldCentroids() {
         int[] triangles = getInterfieldTriangles();
@@ -359,18 +338,15 @@ public class Sphere {
             this.interfieldCentroids = new Position[length];
             System.out.println("Initialized interfield centroids to: " + interfieldCentroids.length + " centroids.");
 
-            IntStream.range(0, length).parallel().forEach(v -> {
-                Position start = this.positions[this.fields[triangles[3 * v]].getIndex()];
-                Position centroid = start.centroid(
-                        this.positions[this.fields[triangles[3 * v + 1]].getIndex()],
-                        this.positions[this.fields[triangles[3 * v + 2]].getIndex()]
-                );
-                interfieldCentroids[v] = centroid;
+            IntStream.range(0, length).parallel().forEach(centroidIndex -> {
+                fields[triangles[3 * centroidIndex]].getInterfieldCentroids(triangles, centroidIndex, interfieldCentroids);
                 centroidCount.getAndIncrement();
             });
         }
         return interfieldCentroids;
     }
+
+
 
     public int[] getInterfieldIndices() {
         if(interfieldIndices == null) {
@@ -380,54 +356,14 @@ public class Sphere {
 
             IntStream.range(0, n).parallel().forEach(f -> {
                 HexField field = this.fields[f];
-                int sides = field.getAdjacentFields().length;
-
-                for (int s = 0; s < sides; s += 1) {
-                    int a1 = field.getAdjacent(s).getIndex();
-                    int a2 = field.getAdjacent((s + 1) % sides).getIndex();
-
-                    interfieldIndices[6 * f + s] = getTriangleIndex(field.getIndex(), a1, a2);
-                    indexCount.getAndIncrement();
-                }
-
+                field.getInterfieldIndices(interfieldIndices, interfieldTriangles);
             });
         }
 
         return interfieldIndices;
     }
 
-    public int getTriangleIndex(int fi1, int fi2, int fi3) {
-        int c = faceIndex(fi1, fi2, fi3);
-        if (c >= 0) return c;
 
-        c = faceIndex(fi2, fi1, fi3);
-        if (c >= 0) return c;
-
-        c = faceIndex(fi3, fi1, fi2);
-        if (c >= 0) return c;
-
-        throw new Error("`Could not find triangle index for faces: " + fi1 + ", " + fi2 + ", " + fi3);
-
-    }
-
-    public int faceIndex(int i, int a1, int a2) {
-        int[] ts = this.getInterfieldTriangles();
-        int f1 = i * 2 - 4;
-        int f2 = i * 2 - 3;
-        int index = -1;
-
-        if (f1 >= 0 && ((ts[f1 * 3 + 1] == a1 || ts[f1 * 3 + 1] == a2) &&
-             (ts[f1 * 3 + 0] == a1 || ts[f1 * 3 + 0] == a2))) {
-            index = f1;
-        }
-
-        if (f2 >= 0 && ((ts[f2 * 3 + 1] == a1 || ts[f2 * 3 + 1] == a2) &&
-             (ts[f2 * 3 + 0] == a1 || ts[f2 * 3 + 0] == a2))) {
-            index = f2;
-        }
-
-        return index;
-    }
 
     public String toString() {
         String out = "";
