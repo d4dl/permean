@@ -1,5 +1,7 @@
 package mesh;
 
+import com.d4dl.mesh.LatLng;
+
 import java.util.HashMap;
 
 /**
@@ -14,6 +16,7 @@ public class HexField {
     //Arbitrary data allowed. Its stored in a list so the correct data can be provided for the current iteration
     private HashMap currentData;
     private HashMap newData;
+    private double area;
 
     HexField(Sphere parent, int index, HashMap data) {
         this.parent         = parent;
@@ -231,6 +234,50 @@ public class HexField {
         return vertices;
     }
 
+    public LatLng[] getLatLon() {
+        LatLng[] vertices = new LatLng[adjacentFields.length];
+
+        Position[] ifc = this.parent.getInterfieldCentroids();
+        int[]    ifi = this.parent.getInterfieldIndices();
+
+        for (int v = 0; v < this.adjacentFields.length; v++) {
+            Position position = ifc[ifi[6 * index + v]];
+            vertices[v] = position.getLatLng();
+        }
+
+        return vertices;
+    }
+
+    public double[] getLngs() {
+        double[] lngs = new double[adjacentFields.length];
+
+        Position[] ifc = this.parent.getInterfieldCentroids();
+        int[]    ifi = this.parent.getInterfieldIndices();
+
+        for (int v = this.adjacentFields.length - 1; v >= 0 ; v--) {
+            Position position = ifc[ifi[6 * index + v]];
+            lngs[v] = position.getLng();
+        }
+
+        return lngs;
+    }
+
+    /**
+     */
+    public double[] getLats() {
+        double[] lats = new double[adjacentFields.length];
+
+        Position[] ifc = this.parent.getInterfieldCentroids();
+        int[]    ifi = this.parent.getInterfieldIndices();
+
+        for (int v = this.adjacentFields.length - 1; v >= 0; v--) {
+          Position position = ifc[ifi[6 * index + v]];
+          lats[v] = position.getLat();
+        }
+
+        return lats;
+    }
+
     public String toString() {
         Position[] vertices = getVertices();
         StringBuffer buff = new StringBuffer();
@@ -238,5 +285,13 @@ public class HexField {
             buff.append(vertices[i]).append("\n");
         }
         return buff.toString();
+    }
+
+    public double getArea() {
+        return area;
+    }
+
+    public void setArea(double area) {
+        this.area = area;
     }
 }

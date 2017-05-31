@@ -22,9 +22,14 @@
   </build>
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <geotools.version>13.2</geotools.version>
+    <geotools.version>17.1</geotools.version>
   </properties>
   <dependencies>
+    <dependency>
+      <groupId>org.geotools</groupId>
+      <artifactId>gt-epsg-hsql</artifactId>
+      <version>${geotools.version}</version>
+    </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
       <artifactId>commons-codec</artifactId>
@@ -76,12 +81,6 @@
       <groupId>org.mongodb</groupId>
       <artifactId>mongo-java-driver</artifactId>
       <version>3.2.0</version>
-    </dependency>
-    <dependency>
-      <groupId>com.d4dl.LabRat.service</groupId>
-      <artifactId>lab-rat-service</artifactId>
-      <version>0.0.1-SNAPSHOT</version>
-      <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>junit</groupId>

@@ -24,7 +24,12 @@ public class TessalatorPainter extends Canvas {
 
     public static void main(String[] args) {
         final TessalatorPainter self = new TessalatorPainter();
-        self.tesselator = new IcosahedronTesselator();
+        self.init(self, new IcosahedronTesselator());
+
+    }
+
+    void init(final TessalatorPainter self, IcosahedronTesselator tesselator) {
+        self.tesselator = tesselator;
         self.polyhedron = self.tesselator.createIcosohedron();
         visitor = new GraphicalFaceVisitor(polyhedron, self);
         polyhedron.setVisitor(visitor);
@@ -98,7 +103,6 @@ public class TessalatorPainter extends Canvas {
                 //To change body of implemented methods use File | Settings | File Templates.
             }
         });
-
     }
 
     public TessalatorPainter() {

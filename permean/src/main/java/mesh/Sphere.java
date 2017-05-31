@@ -98,6 +98,7 @@ public class Sphere {
         getInterfieldIndices();
         System.out.println("Finished getting indexes");
         report();
+        populateAreas();
 
     }
 
@@ -300,6 +301,19 @@ public class Sphere {
         return fields;
     }
 
+    public void populateAreas() {
+        AreaFinder areaFinder = new AreaFinder();
+        //Prime the thing
+        areaFinder.getArea(fields[0].getLats(), fields[1].getLngs());
+        IntStream.range(0, fields.length).parallel().forEach(f -> {
+            double area = areaFinder.getArea(fields[f].getLats(), fields[f].getLngs());
+            fields[f].setArea(area);
+        });
+        for(int i=0; i < fields.length; i++) {
+            double area = areaFinder.getArea(fields[i].getLats(), fields[i].getLngs());
+            System.out.println("Field " + i + " area: " + area + " first area: " + fields[i].getArea());
+        }
+    }
 
     public int[] getInterfieldTriangles() {
         if(interfieldTriangles == null) {
@@ -307,8 +321,7 @@ public class Sphere {
             interfieldTriangles = new int[((2 * length - 4) * 3)];
 
             System.out.println("Initialized interfield triangles to: " + interfieldTriangles.length + " triangles.");
-
-            for (int f = 0; f < length; f += 1) {
+            IntStream.range(0, length).parallel().forEach(f -> {
                 HexField field = this.fields[f];
 
                 if (f > 1) { // not North or South
@@ -332,7 +345,8 @@ public class Sphere {
                     interfieldTriangles[f2 * 3 + 2] = f;
                     triangleCount.getAndIncrement();
                 }
-            }
+            });
+
         }
 
         return interfieldTriangles;
@@ -345,16 +359,15 @@ public class Sphere {
             this.interfieldCentroids = new Position[length];
             System.out.println("Initialized interfield centroids to: " + interfieldCentroids.length + " centroids.");
 
-            for (int v = 0; v < length; v++) {
-
+            IntStream.range(0, length).parallel().forEach(v -> {
                 Position start = this.positions[this.fields[triangles[3 * v]].getIndex()];
                 Position centroid = start.centroid(
-                    this.positions[this.fields[triangles[3 * v + 1]].getIndex()],
-                    this.positions[this.fields[triangles[3 * v + 2]].getIndex()]
+                        this.positions[this.fields[triangles[3 * v + 1]].getIndex()],
+                        this.positions[this.fields[triangles[3 * v + 2]].getIndex()]
                 );
                 interfieldCentroids[v] = centroid;
                 centroidCount.getAndIncrement();
-            }
+            });
         }
         return interfieldCentroids;
     }
@@ -365,7 +378,7 @@ public class Sphere {
             interfieldIndices = new int[6 * n];
             System.out.println("Initialized interfield indices to: " + interfieldTriangles.length + " indices.");
 
-            for (int f = 0; f < n; f++) {
+            IntStream.range(0, n).parallel().forEach(f -> {
                 HexField field = this.fields[f];
                 int sides = field.getAdjacentFields().length;
 
@@ -376,7 +389,8 @@ public class Sphere {
                     interfieldIndices[6 * f + s] = getTriangleIndex(field.getIndex(), a1, a2);
                     indexCount.getAndIncrement();
                 }
-            }
+
+            });
         }
 
         return interfieldIndices;

@@ -1,7 +1,11 @@
 package com.d4dl.mesh;
+
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.io.WKTReader;
 import org.geotools.data.FileDataStore;
 import org.geotools.data.FileDataStoreFinder;
 import org.geotools.data.simple.SimpleFeatureSource;
+import org.geotools.geometry.jts.JTSFactoryFinder;
 import org.geotools.map.FeatureLayer;
 import org.geotools.map.Layer;
 import org.geotools.map.MapContent;
@@ -40,6 +44,9 @@ public class QuickStart {
         Style style = SLD.createSimpleStyle(featureSource.getSchema());
         Layer layer = new FeatureLayer(featureSource, style);
         map.addLayer(layer);
+        GeometryFactory geometryFactory = JTSFactoryFinder.getGeometryFactory( null );
+        WKTReader reader = new WKTReader( geometryFactory );
+
 
         // Now display the map
         JMapFrame.showMap(map);

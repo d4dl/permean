@@ -1,5 +1,7 @@
 package mesh;
 
+import com.d4dl.mesh.LatLng;
+
 import static java.lang.Math.*;
 
 /**
@@ -7,6 +9,7 @@ import static java.lang.Math.*;
  */
 public class Position {
     public static final double π = PI;
+    public static final double convert = PI/180;
 
     //the angle in radians between the equatorial plane and the straight line that passes through that point and through (or close to) the center of the Earth
     private final double φ;
@@ -132,6 +135,20 @@ public class Position {
     }
 
     public String toString() {
-        return "φ: " + φ + ", λ: " + λ;
+        return getLatLng().toString();
+        //return "φ: " + φ + ", λ: " + λ;
     }
+
+    public LatLng getLatLng() {
+        return new LatLng(getLat(), getLng());
+    }
+
+    public double getLat() {
+        return φ/convert;
+    }
+
+    public double getLng() {
+        return λ/convert;
+    }
+
 }
