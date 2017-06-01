@@ -29,7 +29,6 @@ public class Sphere {
     private final AtomicInteger pentagonCount = new AtomicInteger(0);
     private final HexField[] fields;
     private boolean iterating;
-    private final Position[] positions;
     private AtomicInteger createdFieldCount = new AtomicInteger(0);
     private AtomicInteger linkedFieldCount = new AtomicInteger(0);
     private AtomicInteger populatedFieldCount = new AtomicInteger(0);
@@ -54,11 +53,6 @@ public class Sphere {
 
         fields = new HexField[(PEELS * 2 * this.divisions * this.divisions + 2)];
         System.out.println("Initialized hex fields to: " + fields.length + " fields.");
-
-        //this.positions = new double[(int) ((5 * 2 * d * d + 2) * 2)];
-        //Since there are half as many Positions as there were positions before making a proper position object, don't multiply by 2
-        positions = new Position[(5 * 2 * divisions * divisions + 2)];
-        System.out.println("Initialized positions to: " + fields.length + " positions.");
 
         //List<HexField> fieldList = Arrays.asList(fields);
         TimerTask task = new TimerTask() {
@@ -112,9 +106,6 @@ public class Sphere {
                 "). Linked " + linkedFieldCount +
                 " of " + fields.length +
                 " fields (" + percentInstance.format((double)linkedFieldCount.get()/(double)fields.length) +
-                ")  Set " + populatedFieldCount +
-                " of " + positions.length +
-                " positions (" + percentInstance.format((double)populatedFieldCount.get()/(double)positions.length) +
                 ") Created " + this.triangleCount +
                 " of " + triangleCount +
                 " triangles (" + percentInstance.format((double) this.triangleCount.get()/(double) triangleCount) +
@@ -125,10 +116,6 @@ public class Sphere {
                 " of " + indexCount +
                 " centroids (" + percentInstance.format((double) this.indexCount.get()/(double) indexCount) +
                 ")\r");
-    }
-
-    public HexField get(int s, int x, int y) {
-        return this.fields[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
     }
 
     public HexField getNorth() {
@@ -151,35 +138,6 @@ public class Sphere {
         this.iterating = iterating;
     }
 
-    public Position[] getPositions() {
-        return positions;
-    }
-
-
-    /**
-     * Gets this field's position coordinates as a view of the position ArrayBuffer belonging to the parent.
-     * This can be used to set the field's position
-     *
-     * @returns {Float64Array}
-     * @returns {Float64Array}[0] - longitude in radians
-     * @returns {Float64Array}[1] - latitude in radians
-     */
-    public Position getPosition(HexField field) {
-        return this.positions[field.getIndex()];
-    }
-
-    /**
-     * Sets this field's position coordinates.
-     *
-     * @param φ – longitude in radians, between -½π and ½π
-     * @param λ - latitude in radians, between -π and π
-     * @private
-     */
-    public void setPosition(HexField field, double φ, double λ) {
-        this.positions[field.getIndex()] = new Position(φ, λ);
-        populatedFieldCount.incrementAndGet();
-    }
-
     /**
      * Sets the barycenter position of every field on a Sphere.
      *
@@ -189,7 +147,7 @@ public class Sphere {
         TimerTask timer = new TimerTask() {
             @Override
             public void run() {
-                System.out.println("Sphere is populating: " + positions);
+                System.out.println("Sphere is populating: " + fields.length + " fields");
             }
         };
         int max_x = 2 * divisions - 1;
@@ -198,15 +156,15 @@ public class Sphere {
 
         // Determine position for polar and tropical fields using only arithmetic.
 
-        this.setPosition(fields[0], PI / 2, 0);
-        this.setPosition(fields[1], PI / -2, 0);
+        fields[0].setPosition(PI / 2, 0);
+        fields[1].setPosition(PI / -2, 0);
 
         for (int s = 0; s < Sphere.PEELS; s += 1) {
             double λNorth = ((double)s) * 2 / 5 * PI;
             double λSouth = ((double)s) * 2 / 5 * PI + PI / 5;
 
-            setPosition(this.get(s, divisions - 1, 0), PI / 2 - L, λNorth);
-            setPosition(this.get(s, max_x, 0), PI / -2 + L, λSouth);
+            this.get(s, divisions - 1, 0).setPosition(PI / 2 - L, λNorth);
+            this.get(s, max_x, 0).setPosition(PI / -2 + L, λSouth);
         }
 
         // Determine positions for the fields along the edges using arc interpolation.
@@ -223,39 +181,39 @@ public class Sphere {
                 int previousSoutTropicalPentagon = this.get(p, max_x, 0).getIndex();
 
                 // north pole to current north tropical pentagon
-                this.positions[northPole].interpolate(this.positions[currentNorthTropicalPentagon], divisions, buf);
+                this.fields[northPole].getPosition().interpolate(this.fields[currentNorthTropicalPentagon].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), i - 1, 0), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), i - 1, 0).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous north tropical pentagon
-                this.positions[currentNorthTropicalPentagon].interpolate(this.positions[previousNorthTropicalPentagon], divisions, buf);
+                this.fields[currentNorthTropicalPentagon].getPosition().interpolate(this.fields[previousNorthTropicalPentagon].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), divisions - 1 - i, i), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), divisions - 1 - i, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous south tropical pentagon
-                this.positions[currentNorthTropicalPentagon].interpolate(this.positions[previousSoutTropicalPentagon], divisions, buf);
+                this.fields[currentNorthTropicalPentagon].getPosition().interpolate(this.fields[previousSoutTropicalPentagon].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), divisions - 1, i), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), divisions - 1, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to current south tropical pentagon
-                this.positions[currentNorthTropicalPentagon].interpolate(this.positions[currentSouthTropicalPentagon], divisions, buf);
+                this.fields[currentNorthTropicalPentagon].getPosition().interpolate(this.fields[currentSouthTropicalPentagon].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), divisions - 1 + i, 0), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), divisions - 1 + i, 0).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current south tropical pentagon to previous south tropical pentagon
-                this.positions[currentSouthTropicalPentagon].interpolate(this.positions[previousSoutTropicalPentagon], divisions, buf);
+                this.fields[currentSouthTropicalPentagon].getPosition().interpolate(this.fields[previousSoutTropicalPentagon].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), max_x - i, i), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), max_x - i, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current south tropical pentagon to south pole
-                this.positions[currentSouthTropicalPentagon].interpolate(this.positions[southPole], divisions, buf);
+                this.fields[currentSouthTropicalPentagon].getPosition().interpolate(this.fields[southPole].getPosition(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    setPosition(this.get(s.get(), max_x, i), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    this.get(s.get(), max_x, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
             }
         }
@@ -278,14 +236,14 @@ public class Sphere {
                         // which will necessarily belong to
                         // another section.
 
-                        this.positions[f1].interpolate(this.positions[f2], n1 + 1, buf);
+                        this.fields[f1].getPosition().interpolate(this.fields[f2].getPosition(), n1 + 1, buf);
                         for (int i = 1; i < j; i += 1) {
-                            setPosition(this.get(s.get(), x, i), buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                            this.get(s.get(), x, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                         }
 
-                        this.positions[f2].interpolate(this.positions[f3], n2 + 1, buf);
+                        this.fields[f2].getPosition().interpolate(this.fields[f3].getPosition(), n2 + 1, buf);
                         for (int i = j + 1; i < divisions; i += 1) {
-                            setPosition(this.get(s.get(), x, i), buf[2 * (i - j - 1) + 0], buf[2 * (i - j - 1) + 1]);
+                            this.get(s.get(), x, i).setPosition(buf[2 * (i - j - 1) + 0], buf[2 * (i - j - 1) + 1]);
                         }
                     }
                 });
@@ -301,6 +259,15 @@ public class Sphere {
         return fields;
     }
 
+    public HexField getField(int i) {
+        return fields[i];
+    }
+
+    public HexField get(int s, int x, int y) {
+        return this.fields[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
+    }
+
+
     public void populateAreas() {
         AreaFinder areaFinder = new AreaFinder();
         //Prime the thing
@@ -311,7 +278,7 @@ public class Sphere {
         });
         for(int i=0; i < fields.length; i++) {
             double area = areaFinder.getArea(fields[i].getLats(), fields[i].getLngs());
-            System.out.println("Field " + i + " area: " + area + " first area: " + fields[i].getArea());
+            //System.out.println("Field " + i + " area: " + area + " first area: " + fields[i].getArea());
         }
     }
 
@@ -323,6 +290,7 @@ public class Sphere {
             System.out.println("Initialized interfield triangles to: " + interfieldTriangles.length + " triangles.");
             IntStream.range(0, length).parallel().forEach(f -> {
                 fields[f].getInterfieldTriangles(interfieldTriangles);
+                triangleCount.getAndAdd(6);
             });
 
         }
@@ -333,19 +301,20 @@ public class Sphere {
 
     public Position[] getInterfieldCentroids() {
         int[] triangles = getInterfieldTriangles();
-        int length = triangles.length / 3;
         if(interfieldCentroids == null) {
-            this.interfieldCentroids = new Position[length];
+            interfieldCentroids = new Position[triangles.length / 3];
+            int length = interfieldCentroids.length;
             System.out.println("Initialized interfield centroids to: " + interfieldCentroids.length + " centroids.");
 
             IntStream.range(0, length).parallel().forEach(centroidIndex -> {
-                fields[triangles[3 * centroidIndex]].getInterfieldCentroids(triangles, centroidIndex, interfieldCentroids);
+                int triangleIndex = 3 * centroidIndex;
+                int fieldIndex = triangles[triangleIndex];
+                fields[fieldIndex].getInterfieldCentroids(triangles, centroidIndex, interfieldCentroids);
                 centroidCount.getAndIncrement();
             });
         }
         return interfieldCentroids;
     }
-
 
 
     public int[] getInterfieldIndices() {
@@ -357,6 +326,7 @@ public class Sphere {
             IntStream.range(0, n).parallel().forEach(f -> {
                 HexField field = this.fields[f];
                 field.getInterfieldIndices(interfieldIndices, interfieldTriangles);
+                indexCount.getAndAdd(field.getAdjacentFields().length);
             });
         }
 

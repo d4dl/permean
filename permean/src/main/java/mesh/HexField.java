@@ -13,20 +13,21 @@ public class HexField {
     private int index;
     private final boolean isPentagon;
     private HexField[] adjacentFields;
+    private Position position;
     //Arbitrary data allowed. Its stored in a list so the correct data can be provided for the current iteration
     private HashMap currentData;
     private HashMap newData;
     private double area;
 
     HexField(Sphere parent, int index, HashMap data) {
-        this.parent         = parent;
-        this.index          = index;
-        this.currentData    = data;
+        this.parent = parent;
+        this.index = index;
+        this.currentData = data;
         isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parent.getDivisions()) == 0));
     }
 
     public int[] getSxy() {
-        if(index < 2) {
+        if (index < 2) {
             return null;
         } else {
             int l = index - 2;
@@ -57,7 +58,7 @@ public class HexField {
     }
 
     void finishIteration() {
-        if(this.parent.isIterating() == true) {
+        if (this.parent.isIterating() == true) {
             throw new IllegalStateException("Iteration's cannot be finished while the parent is still iterating.  This should be called by the parent after iterating is complete.");
         }
     }
@@ -78,7 +79,8 @@ public class HexField {
     public void link() {
         {
             int d = parent.getDivisions();
-            int[] sxy = getSxy();;
+            int[] sxy = getSxy();
+            ;
             int max_x = d * 2 - 1;
             int max_y = d - 1;
 
@@ -222,10 +224,10 @@ public class HexField {
      * Returns a field's edge vertices and its bounds. Latitudinal coordinates may be
      * greater than π if the field straddles the meridian across from 0.
      */
-   public Position[] getVertices() {
-       Position[] vertices = new Position[adjacentFields.length];
+    public Position[] getVertices() {
+        Position[] vertices = new Position[adjacentFields.length];
         Position[] ifc = this.parent.getInterfieldCentroids();
-        int[]    ifi = this.parent.getInterfieldIndices();
+        int[] ifi = this.parent.getInterfieldIndices();
 
         for (int v = 0; v < this.adjacentFields.length; v++) {
             vertices[v] = ifc[ifi[6 * index + v]];
@@ -238,7 +240,7 @@ public class HexField {
         LatLng[] vertices = new LatLng[adjacentFields.length];
 
         Position[] ifc = this.parent.getInterfieldCentroids();
-        int[]    ifi = this.parent.getInterfieldIndices();
+        int[] ifi = this.parent.getInterfieldIndices();
 
         for (int v = 0; v < this.adjacentFields.length; v++) {
             Position position = ifc[ifi[6 * index + v]];
@@ -252,14 +254,47 @@ public class HexField {
         double[] lngs = new double[adjacentFields.length];
 
         Position[] ifc = this.parent.getInterfieldCentroids();
-        int[]    ifi = this.parent.getInterfieldIndices();
+        int[] ifi = this.parent.getInterfieldIndices();
 
-        for (int v = this.adjacentFields.length - 1; v >= 0 ; v--) {
+        for (int v = this.adjacentFields.length - 1; v >= 0; v--) {
             Position position = ifc[ifi[6 * index + v]];
             lngs[v] = position.getLng();
         }
 
         return lngs;
+    }
+
+    /**
+     */
+    public double[] getLats() {
+        double[] lats = new double[adjacentFields.length];
+
+        Position[] ifc = this.parent.getInterfieldCentroids();
+        int[] ifi = this.parent.getInterfieldIndices();
+
+        for (int v = this.adjacentFields.length - 1; v >= 0; v--) {
+            Position position = ifc[ifi[6 * index + v]];
+            lats[v] = position.getLat();
+        }
+
+        return lats;
+    }
+
+    public String toString() {
+        Position[] vertices = getVertices();
+        StringBuffer buff = new StringBuffer();
+        for (int i = 0; i < vertices.length; i++) {
+            buff.append(vertices[i]).append("\n");
+        }
+        return buff.toString();
+    }
+
+    public double getArea() {
+        return area;
+    }
+
+    public void setArea(double area) {
+        this.area = area;
     }
 
     public void getInterfieldTriangles(int[] interfieldTriangles) {
@@ -280,25 +315,15 @@ public class HexField {
         }
     }
 
-    public void getInterfieldCentroids(int[] triangles, Position[] interfieldCentroids, Position[] positions, HexField[] fields) {
-        Position firstPos = positions[fields[triangles[3 * index]].getIndex()];
-        Position centroid = firstPos.centroid(
-                positions[fields[triangles[3 * index + 1]].getIndex()],
-                positions[fields[triangles[3 * index + 2]].getIndex()]
-        );
-        interfieldCentroids[index] = centroid;
-    }
-
-
     public void getInterfieldCentroids(int[] triangles, int centroidIndex, Position[] interfieldCentroids) {
         int fieldIndex = 3 * centroidIndex;
         HexField secondField = parent.getFields()[triangles[fieldIndex + 1]];
         HexField thirdField = parent.getFields()[triangles[fieldIndex + 2]];
 
-        System.out.println("Getting centroid: " + centroidIndex + " and fp index " + this.getIndex());
-        Position firstPos = parent.getPositions()[this.getIndex()];
-        Position secondPos = parent.getPositions()[secondField.getIndex()];
-        Position thirdPos = parent.getPositions()[thirdField.getIndex()];
+        //System.out.println("Getting centroid: " + centroidIndex + " and fp index " + this.getIndex());
+        Position firstPos = parent.getFields()[this.getIndex()].getPosition();
+        Position secondPos = parent.getFields()[secondField.getIndex()].getPosition();
+        Position thirdPos = parent.getFields()[thirdField.getIndex()].getPosition();
         Position centroid = firstPos.centroid(secondPos, thirdPos);
         interfieldCentroids[centroidIndex] = centroid;
     }
@@ -328,10 +353,9 @@ public class HexField {
         c = faceIndex(fi3, fi1, fi2, triangles);
         if (c >= 0) return c;
 
-        throw new Error("`Could not find triangle index for faces: " + fi1 + ", " + fi2 + ", " + fi3);
+        throw new Error("Could not find triangle index for faces: " + fi1 + ", " + fi2 + ", " + fi3);
 
     }
-
 
 
     public int faceIndex(int i, int a1, int a2, int[] ts) {
@@ -352,36 +376,15 @@ public class HexField {
         return index;
     }
 
-    /**
-     */
-    public double[] getLats() {
-        double[] lats = new double[adjacentFields.length];
-
-        Position[] ifc = this.parent.getInterfieldCentroids();
-        int[]    ifi = this.parent.getInterfieldIndices();
-
-        for (int v = this.adjacentFields.length - 1; v >= 0; v--) {
-          Position position = ifc[ifi[6 * index + v]];
-          lats[v] = position.getLat();
-        }
-
-        return lats;
+    public Position getPosition() {
+        return position;
     }
 
-    public String toString() {
-        Position[] vertices = getVertices();
-        StringBuffer buff = new StringBuffer();
-        for(int i=0; i < vertices.length; i++) {
-            buff.append(vertices[i]).append("\n");
-        }
-        return buff.toString();
+    public void setPosition(Position position) {
+        this.position = position;
     }
 
-    public double getArea() {
-        return area;
-    }
-
-    public void setArea(double area) {
-        this.area = area;
+    public void setPosition(double φ, double λ) {
+        this.position = new Position(φ, λ);
     }
 }
