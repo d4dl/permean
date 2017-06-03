@@ -26,6 +26,8 @@ public class Cell {
     private HashMap newData;
     private String name;
     private double area;
+    private Object lock;
+    private boolean isProcessing;
     //The last one needs to not be cleaned up. It will have had everything populated already but its indexes.
     private boolean isLast = false;
 
@@ -119,28 +121,31 @@ public class Cell {
      * @return
      */
     public void setLatLngIndices(AtomicInteger nextIndex, LatLng[] vertices) {
-        initVertexCalculationObjects();
-        int sides = adjacentCells.length;
-        for(int i = 0; i < sides; i++) {
-            Cell neighbor1 = adjacentCells[i];
-            Cell neighbor2 = adjacentCells[(1+i)%sides];
-            Integer sharedVertexIndex = vertexIndices[i] >= 0 ? vertexIndices[i] : null;
-            if(sharedVertexIndex == null) {
-                sharedVertexIndex = getSharedVertexIndex(neighbor1, neighbor2);
+        if(adjacentCells != null) {
+            initVertexCalculationObjects();
+            int sides = adjacentCells.length;
+            for(int i = 0; i < sides; i++) {
+                Integer sharedVertexIndex = vertexIndices[i] >= 0 ? vertexIndices[i] : null;
+                if(sharedVertexIndex == null) {
+                    Cell neighbor1 = adjacentCells[i];
+                    Cell neighbor2 = adjacentCells[(1 + i) % sides];
+                    if (sharedVertexIndex == null) {
+                        sharedVertexIndex = getSharedVertexIndex(neighbor1, neighbor2);
+                    }
+                    if (sharedVertexIndex == null) {
+                        //The cell will share exactly one vertex with an odd adjacent ell and one with an even.
+                        Position newVertex = getPosition().centroid(neighbor1.getPosition(), neighbor2.getPosition());
+                        sharedVertexIndex = nextIndex.getAndIncrement();
+                        vertices[sharedVertexIndex] = newVertex.getLatLng();
+                    }
+                    setSharedVertexIndex(neighbor1, neighbor2, i, sharedVertexIndex);
+                }
             }
-            if(sharedVertexIndex == null) {
-                //The cell will share exactly one vertex with an odd adjacent ell and one with an even.
-                Position newVertex = getPosition().centroid(neighbor1.getPosition(), neighbor2.getPosition());
-                sharedVertexIndex = nextIndex.getAndIncrement();
-                vertices[sharedVertexIndex]  = newVertex.getLatLng();
+            position = null;
+            for(int i = 0; i < sides; i++) {
+                Cell neighbor = adjacentCells[i];
+                neighbor.registerComplete();
             }
-            setSharedVertexIndex(neighbor1, neighbor2, sharedVertexIndex);
-            this.vertexIndices[i] = sharedVertexIndex;
-        }
-        position = null;
-        for(int i = 0; i < sides; i++) {
-            Cell neighbor = adjacentCells[i];
-            neighbor.registerComplete();
         }
     }
 
@@ -153,16 +158,25 @@ public class Cell {
         return shared;
     }
 
-    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, Integer index) {
-        setSharedVertexIndex(neighbor1, neighbor2, index, true);
+    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, int neighborIndex, Integer index) {
+        setSharedVertexIndex(neighbor1, neighbor2, neighborIndex, index, true);
     }
 
-    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, Integer index, boolean deep) {
+    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, int neighborIndex, Integer index, boolean deep) {
         initVertexCalculationObjects();
         commonVertices.get(neighbor1).put(neighbor2, index);
+        this.vertexIndices[neighborIndex] = index;
         if(deep) {
-            neighbor1.setSharedVertexIndex(this, neighbor2, index, false);
-            neighbor2.setSharedVertexIndex(this, neighbor1, index, false);
+            for(int i=0; i < neighbor1.adjacentCells.length; i++) {
+                if(neighbor1.adjacentCells[i] == this) {
+                    neighbor1.setSharedVertexIndex(this, neighbor2, i, index, false);
+                }
+            }
+            for(int i=0; i < neighbor2.adjacentCells.length; i++) {
+                if(neighbor2.adjacentCells[i] == this) {
+                    neighbor2.setSharedVertexIndex(this, neighbor1, i, index, false);
+                }
+            }
         }
     }
 

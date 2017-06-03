@@ -36,8 +36,6 @@ public class Sphere {
     private boolean iterating;
     private AtomicInteger createdCellCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
-    private AtomicInteger populatedCellCount = new AtomicInteger(0);
-
     private AtomicInteger triangleCount = new AtomicInteger(0);
     private AtomicInteger centroidCount = new AtomicInteger(0);
     private AtomicInteger indexCount = new AtomicInteger(0);
@@ -47,6 +45,7 @@ public class Sphere {
     private int[] intercellTriangles = null;
     private int[] intercellIndices = null;
     private LatLng[] latLngCoords;
+    TimerTask timer;
 
     public static void main(String args[]) {
         new Sphere(1);
@@ -58,7 +57,7 @@ public class Sphere {
         this.divisions = divisions;
 
         cells = new Cell[(PEELS * 2 * this.divisions * this.divisions + 2)];
-        System.out.println("Initialized hex cells to: " + cells.length + " cells.");
+        //System.out.println("Initialized hex cells to: " + cells.length + " cells.");
 
         //List<HexCell> cellList = Arrays.asList(cells);
         TimerTask task = new TimerTask() {
@@ -81,54 +80,51 @@ public class Sphere {
             return cell;
         });
 
-        System.out.println("Finished creating the cells. There are " + pentagonCount + " pentagons and " + (cells.length - pentagonCount.get()) + " hexagons.");
+        //System.out.println("Finished creating the cells. There are " + pentagonCount + " pentagons and " + (cells.length - pentagonCount.get()) + " hexagons.");
         IntStream.range(0, cells.length).parallel().forEach(i -> {
             linkedCellCount.incrementAndGet();
             cells[i].linkNeighboringCells();
         });
-        System.out.println("Finished linking the hex cells");
+        //System.out.println("Finished linking the hex cells");
 
         populate();
-        System.out.println("Finished populating");
+        //System.out.println("Finished populating");
         AtomicInteger vertexIndex = new AtomicInteger(0);
-        latLngCoords = new LatLng[cells.length * 10];
-        Cell lastCell = cells[cells.length - 1];
-        lastCell.setIsLast(true);
-        //IntStream.range(0, cells.length).parallel().forEach(i -> {
-        for(int i=0; i < cells.length - 1; i++) {
+        latLngCoords = new LatLng[(cells.length * 2) - 4];
+        //Cell lastCell = cells[cells.length - 1];
+        //lastCell.setIsLast(true);
+        IntStream.range(0, cells.length).parallel().forEach(i -> {
+        //int i=0;
+        //for(; i < cells.length; i++) {
             cells[i].setLatLngIndices(vertexIndex, latLngCoords);
-        }
-        lastCell.setLatLngIndices(vertexIndex, latLngCoords);
+            indexCount.incrementAndGet();
+        //}
+        //lastCell.setLatLngIndices(vertexIndex, latLngCoords);
         //for(int j=0; j < cells.length; j++) {
             //System.out.println("Complete?: " + cells[j].getAdjacents() == null);
         //}
-        //});
+        });
         long s = System.currentTimeMillis();
-        System.out.println("Created polygon in " + String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60)));
+        //System.out.println("Created polygon in " + String.format("%d:%02d:%02d", s / 3600, (s % 3600) / 60, (s % 60)));
+        report();
+        timer.cancel();
         populateAreas();
+        System.out.println("Finished.  Cell count: and Index count \t" + cells.length + "\t" + vertexIndex);
 
     }
 
     private void report() {
-        int triangleCount = intercellTriangles != null ? intercellTriangles.length : -1;
-        int centroidCount = intercellCentroids != null ? intercellCentroids.length : -1;
         int indexCount = intercellIndices != null ? intercellIndices.length : -1;
-        System.out.println("Created " + createdCellCount +
-                " of " + cells.length +
-                " cells (" + percentInstance.format((double)createdCellCount.get()/(double)cells.length) +
-                "). Linked " + linkedCellCount +
-                " of " + cells.length +
-                " cells (" + percentInstance.format((double)linkedCellCount.get()/(double)cells.length) +
-                ") Created " + this.triangleCount +
-                " of " + triangleCount +
-                " triangles (" + percentInstance.format((double) this.triangleCount.get()/(double) triangleCount) +
-                ") Created " + this.centroidCount +
-                " of " + centroidCount +
-                " indexes (" + percentInstance.format((double) this.centroidCount.get()/(double) centroidCount) +
-                ") Created " + this.indexCount +
-                " of " + indexCount +
-                " centroids (" + percentInstance.format((double) this.indexCount.get()/(double) indexCount) +
-                ")\r");
+        //System.out.println("Created " + createdCellCount +
+                //" of " + cells.length +
+                //" cells (" + percentInstance.format((double)createdCellCount.get()/(double)cells.length) +
+                //"). Linked " + linkedCellCount +
+                //" of " + cells.length +
+                //" cells (" + percentInstance.format((double)linkedCellCount.get()/(double)cells.length) +
+                //") Created " + this.indexCount +
+                //" of " + cells.length +
+                //" indexes (" + percentInstance.format((double) this.indexCount.get()/(double) cells.length) +
+                //")\r");
     }
 
     public Cell getNorth() {
@@ -157,14 +153,15 @@ public class Sphere {
      * @this {Sphere}
      */
     public void populate() {
-        TimerTask timer = new TimerTask() {
+        timer = new TimerTask() {
             @Override
             public void run() {
-                System.out.println("Sphere is populating: " + cells.length + " cells");
+                //System.out.println("Sphere is populating: " + cells.length + " cells");
             }
         };
         int max_x = 2 * divisions - 1;
         double[] buf = new double[((divisions - 1) * 2)];
+        timer.cancel();
 
 
         // Determine position for polar and tropical cells using only arithmetic.
@@ -278,7 +275,7 @@ public class Sphere {
                 });
             }
         }
-        System.out.println("Populated " + barycenterCount + " barycenters");
+        //System.out.println("Populated " + barycenterCount + " barycenters");
     }
 
     public int getPentagonCount() {
@@ -315,7 +312,7 @@ public class Sphere {
         });
         for(int i=0; i < cells.length; i++) {
             double area = areaFinder.getArea(cells[i].getVertices(latLngCoords));
-            System.out.println("Cell " + i + " area: " + area + " first area: " + cells[i].getArea());
+            //System.out.println("Cell " + i + " area: " + area + " first area: " + cells[i].getArea());
         }
     }
 
