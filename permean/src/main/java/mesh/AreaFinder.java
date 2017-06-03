@@ -1,5 +1,6 @@
 package mesh;
 
+import com.d4dl.mesh.LatLng;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -35,37 +36,30 @@ public class AreaFinder {
         // Example data: vertex coords of a unit rectangle
         //double[] x = {-43, -43, -44, -43}; // longitudes
         //double[] y = {-23, -22, -22, -23}; // latitudes
-        double[] x = {-99.28590692589428,
-                      -99.18281160052523,
-                      -98.78925663799728,
-                      -98.53781907559026,
-                      -98.91444605352078};
+        LatLng[] coords = new LatLng[]{
+                new LatLng(33.79787108857934, -99.28590692589428),
+                new LatLng(33.40020055341449, -99.18281160052523),
+                new LatLng(33.44000622594606, -98.78925663799728),
+                new LatLng(33.79433622199097, -98.53781907559026),
+                new LatLng(33.89309928416176, -98.91444605352078)};
 
-        double[] y = {33.79787108857934,
-                      33.40020055341449,
-                      33.44000622594606,
-                      33.79433622199097,
-                      33.89309928416176};
 
 
         // calculate area
-        double area = new AreaFinder().getArea(x, y);
-        System.out.println("Polygon area: " + area);
+        double area = new AreaFinder().getArea(coords);
+        //System.out.println("Polygon area: " + area);
     }
 
-    public double getArea(double[] lon, double[] lat)  {
+    public double getArea(LatLng[] latLngs)  {
         try {
-            if (lon.length < 3 || lon.length != lat.length) {
-                throw new IllegalArgumentException("Bummer: bad arguments");
-            }
-            final int N = lon.length;
+            final int N = latLngs.length;
 
             // Create the polygon
             Coordinate[] coords = new Coordinate[N + 1];
 
             for (int i = 0; i < N; i++) {
                 // remember X = longitude, Y = latitude !
-                coords[i] = new Coordinate(lon[i], lat[i]);
+                coords[i] = new Coordinate(latLngs[i].getLat(), latLngs[i].getLng());
             }
             // closing coordinate (same as first coord
             coords[N] = new Coordinate(coords[0]);
