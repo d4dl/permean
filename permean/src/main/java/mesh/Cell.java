@@ -2,21 +2,33 @@ package mesh;
 
 import com.d4dl.mesh.LatLng;
 
+import java.util.AbstractQueue;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Created by joshuadeford on 5/29/17.
+ * This is not a thread safe class. In fact, no two threads should be operating on two different
+ * cells at the same time.  To take advantage of multi-threading have a working thread processing a queue
+ * of cells to populate their triangles.
  */
 public class Cell {
     private int index;
 
     private Sphere parent;
     private Cell[] adjacentCells;
+
+
     private int[] vertexIndices;
+    private static final int SIX_CELLS = (1 << 6) ^ (1 << 5) ^ (1 << 4) ^ (1 << 3) ^ (1 << 2) ^ (1 << 1);
+    private static final int FIVE_CELLS = (1 << 5) ^ (1 << 4) ^ (1 << 3) ^ (1 << 2) ^ (1 << 1);
+    //Used to determine when all vertices are set
+    //private int vertexMask;
+    //Used to determine when all adjacent cells have positions
+    private int adjacentCellsWithPositions;
     //When all neighbors are complete a lot of stuff can be cleaned up to conserve memory
     private AtomicInteger completeNeighborCount = new AtomicInteger(0);
+    private AtomicInteger readyNeighborCount = new AtomicInteger(0);
     private Map<Cell, Map<Cell, Integer>> commonVertices;
     private Position position;
 
@@ -26,10 +38,7 @@ public class Cell {
     private HashMap newData;
     private String name;
     private double area;
-    private Object lock;
-    private boolean isProcessing;
-    //The last one needs to not be cleaned up. It will have had everything populated already but its indexes.
-    private boolean isLast = false;
+    private boolean latLngIsPopulated;
 
     Cell(Sphere parent, int index, HashMap data) {
         this.parent = parent;
@@ -52,17 +61,21 @@ public class Cell {
         }
     }
 
-    private void registerComplete() {
-        int completeCount = completeNeighborCount.incrementAndGet();
-        if(completeCount == this.adjacentCells.length && !isLast) {
-            //Clean up memory
-            parent = null;
-            adjacentCells = null;
-            ////vertexIndices = null;
-            completeNeighborCount = null;
-            commonVertices = null;
-            position = null;
-        }
+    public void clean() {
+        //Clean up memory
+        position = null;
+        parent = null;
+        adjacentCells = null;
+        completeNeighborCount = null;
+        commonVertices = null;
+    }
+
+    public boolean canBeCleaned() {
+        return completeNeighborCount.get() == adjacentCells.length;
+    }
+
+    public boolean canTakeCoordinates() {
+        return readyNeighborCount.get() == adjacentCells.length;
     }
 
     public int[] getSxy() {
@@ -80,6 +93,9 @@ public class Cell {
         }
     }
 
+    public int[] getVertexIndices() {
+        return vertexIndices;
+    }
     public HashMap getData() {
         return this.currentData;
     }
@@ -121,31 +137,23 @@ public class Cell {
      * @return
      */
     public void setLatLngIndices(AtomicInteger nextIndex, LatLng[] vertices) {
-        if(adjacentCells != null) {
-            initVertexCalculationObjects();
-            int sides = adjacentCells.length;
-            for(int i = 0; i < sides; i++) {
-                Integer sharedVertexIndex = vertexIndices[i] >= 0 ? vertexIndices[i] : null;
-                if(sharedVertexIndex == null) {
-                    Cell neighbor1 = adjacentCells[i];
-                    Cell neighbor2 = adjacentCells[(1 + i) % sides];
-                    if (sharedVertexIndex == null) {
-                        sharedVertexIndex = getSharedVertexIndex(neighbor1, neighbor2);
-                    }
-                    if (sharedVertexIndex == null) {
-                        //The cell will share exactly one vertex with an odd adjacent ell and one with an even.
-                        Position newVertex = getPosition().centroid(neighbor1.getPosition(), neighbor2.getPosition());
-                        sharedVertexIndex = nextIndex.getAndIncrement();
-                        vertices[sharedVertexIndex] = newVertex.getLatLng();
-                    }
-                    setSharedVertexIndex(neighbor1, neighbor2, i, sharedVertexIndex);
-                }
+        initVertexCalculationObjects();
+        int sides = adjacentCells.length;
+        for(int i = 0; i < sides; i++) {
+            Cell neighbor1 = adjacentCells[i];
+            Cell neighbor2 = adjacentCells[(1+i)%sides];
+            Integer sharedVertexIndex = vertexIndices[i] >= 0 ? vertexIndices[i] : null;
+            if(sharedVertexIndex == null) {
+                sharedVertexIndex = getSharedVertexIndex(neighbor1, neighbor2);
             }
-            position = null;
-            for(int i = 0; i < sides; i++) {
-                Cell neighbor = adjacentCells[i];
-                neighbor.registerComplete();
+            if (sharedVertexIndex == null) {
+                Position newVertex = getPosition().centroid(neighbor1.getPosition(), neighbor2.getPosition());
+                sharedVertexIndex = nextIndex.getAndIncrement();
+                vertices[sharedVertexIndex] = newVertex.getLatLng();
             }
+            setSharedVertexIndex(neighbor1, neighbor2, i, sharedVertexIndex);
+            setVertex(i, sharedVertexIndex);
+            neighbor1.completeNeighborCount.incrementAndGet();
         }
     }
 
@@ -162,22 +170,28 @@ public class Cell {
         setSharedVertexIndex(neighbor1, neighbor2, neighborIndex, index, true);
     }
 
-    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, int neighborIndex, Integer index, boolean deep) {
+
+    private void setSharedVertexIndex(Cell neighbor1, Cell neighbor2, int index, Integer vertex, boolean deep) {
         initVertexCalculationObjects();
-        commonVertices.get(neighbor1).put(neighbor2, index);
-        this.vertexIndices[neighborIndex] = index;
+        commonVertices.get(neighbor1).put(neighbor2, vertex);
+        setVertex(index, vertex);
         if(deep) {
             for(int i=0; i < neighbor1.adjacentCells.length; i++) {
                 if(neighbor1.adjacentCells[i] == this) {
-                    neighbor1.setSharedVertexIndex(this, neighbor2, i, index, false);
+                    neighbor1.setSharedVertexIndex(this, neighbor2, i, vertex, false);
                 }
             }
             for(int i=0; i < neighbor2.adjacentCells.length; i++) {
                 if(neighbor2.adjacentCells[i] == this) {
-                    neighbor2.setSharedVertexIndex(this, neighbor1, i, index, false);
+                    neighbor2.setSharedVertexIndex(this, neighbor1, i, vertex, false);
                 }
             }
         }
+    }
+
+    private void setVertex(int index, int vertex) {
+        //vertexMask = vertexMask ^ (index + 1);
+        this.vertexIndices[index] = vertex;
     }
 
     public void linkNeighboringCells() {
@@ -189,19 +203,19 @@ public class Cell {
         // Link polar pentagons to the adjacent cells
         if (this.index == 0) {
             this.adjacentCells = new Cell[]{
-                    parent.get(0, 0, 0),
-                    parent.get(1, 0, 0),
-                    parent.get(2, 0, 0),
-                    parent.get(3, 0, 0),
-                    parent.get(4, 0, 0)
+                    parent.getCellBySXY(0, 0, 0),
+                    parent.getCellBySXY(1, 0, 0),
+                    parent.getCellBySXY(2, 0, 0),
+                    parent.getCellBySXY(3, 0, 0),
+                    parent.getCellBySXY(4, 0, 0)
             };
         } else if (this.index == 1) {
             this.adjacentCells = new Cell[]{
-                    parent.get(0, max_x, max_y),
-                    parent.get(1, max_x, max_y),
-                    parent.get(2, max_x, max_y),
-                    parent.get(3, max_x, max_y),
-                    parent.get(4, max_x, max_y)
+                    parent.getCellBySXY(0, max_x, max_y),
+                    parent.getCellBySXY(1, max_x, max_y),
+                    parent.getCellBySXY(2, max_x, max_y),
+                    parent.getCellBySXY(3, max_x, max_y),
+                    parent.getCellBySXY(4, max_x, max_y)
             };
         } else {
             int next = (sxy[0] + 1 + Sphere.PEELS) % Sphere.PEELS;
@@ -215,37 +229,37 @@ public class Cell {
 
             // 0: northwestern adjacent (x--)
             if (x > 0) {
-                this.adjacentCells[0] = parent.get(s, x - 1, y);
+                this.adjacentCells[0] = parent.getCellBySXY(s, x - 1, y);
             } else {
                 if (y == 0) {
                     this.adjacentCells[0] = parent.getNorth();
                 } else {
-                    this.adjacentCells[0] = parent.get(prev, y - 1, 0);
+                    this.adjacentCells[0] = parent.getCellBySXY(prev, y - 1, 0);
                 }
             }
 
             // 1: western adjacent (x--, y++)
             if (x == 0) {
                 // attach northwestern edge to previous north-northeastern edge
-                this.adjacentCells[1] = parent.get(prev, y, 0);
+                this.adjacentCells[1] = parent.getCellBySXY(prev, y, 0);
             } else {
                 if (y == max_y) {
                     // attach southwestern edge...
                     if (x > d) {
                         // ...to previous southeastern edge
-                        this.adjacentCells[1] = parent.get(prev, max_x, x - d);
+                        this.adjacentCells[1] = parent.getCellBySXY(prev, max_x, x - d);
                     } else {
                         // ...to previous east-northeastern edge
-                        this.adjacentCells[1] = parent.get(prev, x + d - 1, 0);
+                        this.adjacentCells[1] = parent.getCellBySXY(prev, x + d - 1, 0);
                     }
                 } else {
-                    this.adjacentCells[1] = parent.get(s, x - 1, y + 1);
+                    this.adjacentCells[1] = parent.getCellBySXY(s, x - 1, y + 1);
                 }
             }
 
             // 2: southwestern adjacent (y++)
             if (y < max_y) {
-                this.adjacentCells[2] = parent.get(s, x, y + 1);
+                this.adjacentCells[2] = parent.getCellBySXY(s, x, y + 1);
             } else {
                 if (x == max_x && y == max_y) {
                     this.adjacentCells[2] = parent.getSouth();
@@ -253,10 +267,10 @@ public class Cell {
                     // attach southwestern edge...
                     if (x >= d) {
                         // ...to previous southeastern edge
-                        this.adjacentCells[2] = parent.get(prev, max_x, x - d + 1);
+                        this.adjacentCells[2] = parent.getCellBySXY(prev, max_x, x - d + 1);
                     } else {
                         // ...to previous east-northeastern edge
-                        this.adjacentCells[2] = parent.get(prev, x + d, 0);
+                        this.adjacentCells[2] = parent.getCellBySXY(prev, x + d, 0);
                     }
                 }
             }
@@ -265,51 +279,51 @@ public class Cell {
                 // the last two aren't the same for pentagons
                 if (x == d - 1) {
                     // this is the northern tropical pentagon
-                    this.adjacentCells[3] = parent.get(s, x + 1, 0);
-                    this.adjacentCells[4] = parent.get(next, 0, max_y);
+                    this.adjacentCells[3] = parent.getCellBySXY(s, x + 1, 0);
+                    this.adjacentCells[4] = parent.getCellBySXY(next, 0, max_y);
                 } else if (x == max_x) {
                     // this is the southern tropical pentagon
-                    this.adjacentCells[3] = parent.get(next, d, max_y);
-                    this.adjacentCells[4] = parent.get(next, d - 1, max_y);
+                    this.adjacentCells[3] = parent.getCellBySXY(next, d, max_y);
+                    this.adjacentCells[4] = parent.getCellBySXY(next, d - 1, max_y);
                 }
             } else {
                 // 3: southeastern adjacent (x++)
                 if (x == max_x) {
-                    this.adjacentCells[3] = parent.get(next, y + d, max_y);
+                    this.adjacentCells[3] = parent.getCellBySXY(next, y + d, max_y);
                 } else {
-                    this.adjacentCells[3] = parent.get(s, x + 1, y);
+                    this.adjacentCells[3] = parent.getCellBySXY(s, x + 1, y);
                 }
 
                 // 4: eastern adjacent (x++, y--)
                 if (x == max_x) {
-                    this.adjacentCells[4] = parent.get(next, y + d - 1, max_y);
+                    this.adjacentCells[4] = parent.getCellBySXY(next, y + d - 1, max_y);
                 } else {
                     if (y == 0) {
                         // attach northeastern side to...
                         if (x < d) {
                             // ...to next northwestern edge
-                            this.adjacentCells[4] = parent.get(next, 0, x + 1);
+                            this.adjacentCells[4] = parent.getCellBySXY(next, 0, x + 1);
                         } else {
                             // ...to next west-southwestern edge
-                            this.adjacentCells[4] = parent.get(next, x - d + 1, max_y);
+                            this.adjacentCells[4] = parent.getCellBySXY(next, x - d + 1, max_y);
                         }
                     } else {
-                        this.adjacentCells[4] = parent.get(s, x + 1, y - 1);
+                        this.adjacentCells[4] = parent.getCellBySXY(s, x + 1, y - 1);
                     }
                 }
 
                 // 5: northeastern adjacent (y--)
                 if (y > 0) {
-                    this.adjacentCells[5] = parent.get(s, x, y - 1);
+                    this.adjacentCells[5] = parent.getCellBySXY(s, x, y - 1);
                 } else {
                     if (y == 0) {
                         // attach northeastern side to...
                         if (x < d) {
                             // ...to next northwestern edge
-                            this.adjacentCells[5] = parent.get(next, 0, x);
+                            this.adjacentCells[5] = parent.getCellBySXY(next, 0, x);
                         } else {
                             // ...to next west-southwestern edge
-                            this.adjacentCells[5] = parent.get(next, x - d, max_y);
+                            this.adjacentCells[5] = parent.getCellBySXY(next, x - d, max_y);
                         }
                     }
                 }
@@ -355,12 +369,16 @@ public class Cell {
         return position;
     }
 
-    public void setPosition(Position position) {
+    public void setPosition(Position position, AbstractQueue<Cell> coordinatesQueue) {
+        coordinatesQueue.add(this);
+        for(Cell adjacent : adjacentCells) {
+            adjacent.readyNeighborCount.incrementAndGet();
+        }
         this.position = position;
     }
 
-    public void setPosition(double φ, double λ) {
-        this.position = new Position(φ, λ);
+    public void setPosition(double φ, double λ, AbstractQueue<Cell> coordinatesQueue) {
+        setPosition(new Position(φ, λ), coordinatesQueue);
     }
 
     public String getName() {
@@ -371,7 +389,4 @@ public class Cell {
         this.name = name;
     }
 
-    public void setIsLast(boolean isLast) {
-        this.isLast = isLast;
-    }
 }
