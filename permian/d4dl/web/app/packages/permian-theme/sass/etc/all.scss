@@ -1,0 +1,160 @@
+.sliceTile img {
+  overflow: hidden;
+}
+
+body {
+  overflow: hidden;
+  min-width: 840px;
+  background-image: url('img/daisy.jpg') !important;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-position: center;
+}
+#zoomSuggestion {
+  font-size: 18px;
+  height: 80px;
+  width: 434px;
+}
+
+
+.instruction, .instructions p {
+  font-size: 12px;
+  color: #444444;
+}
+
+.sharePanel {
+  font-size: 14px;
+  margin-top: 5px;
+  text-align: right;
+  margin-bottom: 5px;
+}
+
+.shareInstructions {
+
+}
+
+.space {
+  width: 40px;
+}
+
+.descriptionCell {
+  font-size: 14px;
+}
+.descriptionCellContent {
+  width: 468px;
+  vertical-align: top;
+}
+
+.shared {
+  vertical-align: top;
+  padding-top: 4px;
+  font-size: 35px !important;
+  font-style: italic;
+  text-shadow: 2px 2px #DDD;
+}
+
+td.titleCell ul {
+  padding: 0px;
+  margin: 0px 0px 0px 0px;
+  display: block;
+  list-style-type: none;
+  -webkit-margin-before: 0px;
+  -webkit-margin-after: 0px;
+  -webkit-margin-start: 0px;
+  -webkit-margin-end: 0px;
+  -webkit-padding-start: 40px;
+}
+
+.subtext {
+  font-size: 10px;
+}
+
+.titleCell ul li {
+  margin: 0px 0px 0px 0px;
+  font-size: 18px;
+}
+
+.titleCell ul li.one {
+  color: #888888;
+}
+
+.titleCell ul li.two {
+  color: #606060;
+}
+
+.titleCell ul li.three {
+  color: #333333;
+}
+
+.titleCell {
+  width: 260px;
+  vertical-align: top;
+}
+.appeal {
+
+}
+
+.headerTable {
+  width: 100%;
+  background-image: url(img/singlewhitedaisy.jpg);
+  background-repeat: no-repeat;
+  background-position: 100% -8px;
+}
+
+.exposition {
+  font-size: 18px;
+  margin-left: 32px;
+}
+
+.sliceTile {
+  display: inline-table;
+  width: 60px;
+  height: 60px;
+  margin: 3px;
+  border-width: 1px;
+  border-style: solid;
+
+  -webkit-border-radius: 3px;
+  -moz-border-radius: 3px;
+  border-radius: 3px;
+  box-shadow: 3px 3px 3px #888;
+
+  -moz-box-shadow: 3px 3px 5px #888;
+  -webkit-box-shadow: 3px 3px 5px #888;
+  box-shadow: 3px 3px 5px #888;
+}
+
+.sliceContainer {
+    margin-top: 9px;
+    margin-right: 10px;
+    margin-bottom: 8px;
+    min-height: 204px;
+    background-image: url(img/gree.jpg);
+    border-style: dotted;
+    border-color: #581119;
+    border-width: 1px;
+}
+
+.logoCell {
+  width: 254px;
+  height: 117px;
+  background-repeat: no-repeat;
+  background-image: url(img/logo.png);
+}
+
+body {
+  height: 100%;
+}
+
+.x-form-item, .x-btn, .descriptionCell {
+  margin: 6px;
+}
+
+.mapControls {
+  background: #EFF5FF;
+}
+
+.mapControls .x-panel-body-default {
+  border-width: 0px;
+  margin: 6px;
+}

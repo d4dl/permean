@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$PROJECT_DIR$/../spring/Permean.iml" filepath="$PROJECT_DIR$/../spring/Permean.iml" />
       <module fileurl="file://$PROJECT_DIR$/permean.iml" filepath="$PROJECT_DIR$/permean.iml" />
     </modules>
   </component>

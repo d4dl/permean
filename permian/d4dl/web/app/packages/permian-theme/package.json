@@ -1,0 +1,13 @@
+{
+    "name": "permian-theme",
+    "type": "theme",
+    "creator": "Joshua DeFord",
+    "summary": "Permian Theme",
+    "detailedDescription": "An extended version of the neptune theme.",
+    "version": "1.0.0",
+    "compatVersion": "1.0.0",
+    "format": "1",
+    "local": true,
+    "requires": [],
+    "extend": "ext-theme-neptune"
+}

@@ -3,14 +3,29 @@
   <component name="NewModuleRootManager" LANGUAGE_LEVEL="JDK_1_8" inherit-compiler-output="false">
     <output url="file://$MODULE_DIR$/target/classes" />
     <output-test url="file://$MODULE_DIR$/target/test-classes" />
+    <content url="file://$MODULE_DIR$/../gridnet" />
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$/src/main/java" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src/test/java" isTestSource="true" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>
+    <content url="file://$MODULE_DIR$/../permian" />
     <orderEntry type="jdk" jdkName="1.8" jdkType="JavaSDK" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-epsg-hsql:17.1" level="project" />
+    <orderEntry type="library" name="Maven: commons-codec:commons-codec:1.4" level="project" />
+    <orderEntry type="library" name="Maven: java3d:j3d-core-utils:1.3.1" level="project" />
+    <orderEntry type="library" name="Maven: java3d:vecmath:1.3.1" level="project" />
+    <orderEntry type="library" name="Maven: java3d:j3d-core:1.3.1" level="project" />
+    <orderEntry type="library" name="Maven: com.google.gwt:gwt-user:2.1.1" level="project" />
+    <orderEntry type="library" name="Maven: org.mongodb:mongo-java-driver:3.2.0" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-grid:17.1" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-main:17.1" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-api:17.1" level="project" />
+    <orderEntry type="library" name="Maven: javax.media:jai_core:1.1.3" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-shapefile:17.1" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-data:17.1" level="project" />
+    <orderEntry type="library" name="Maven: org.jdom:jdom:1.1.3" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-swing:17.1" level="project" />
     <orderEntry type="library" name="Maven: org.geotools:gt-referencing:17.1" level="project" />
     <orderEntry type="library" name="Maven: com.googlecode.efficient-java-matrix-library:core:0.26" level="project" />
     <orderEntry type="library" name="Maven: commons-pool:commons-pool:1.5.4" level="project" />
@@ -19,23 +34,6 @@
     <orderEntry type="library" name="Maven: net.java.dev.jsr-275:jsr-275:1.0-beta-2" level="project" />
     <orderEntry type="library" name="Maven: jgridshift:jgridshift:1.0" level="project" />
     <orderEntry type="library" name="Maven: net.sf.geographiclib:GeographicLib-Java:1.44" level="project" />
-    <orderEntry type="library" name="Maven: org.hsqldb:hsqldb:2.3.0" level="project" />
-    <orderEntry type="library" name="Maven: javax.media:jai_core:1.1.3" level="project" />
-    <orderEntry type="library" name="Maven: commons-codec:commons-codec:1.4" level="project" />
-    <orderEntry type="library" name="Maven: java3d:j3d-core-utils:1.3.1" level="project" />
-    <orderEntry type="library" name="Maven: java3d:vecmath:1.3.1" level="project" />
-    <orderEntry type="library" name="Maven: java3d:j3d-core:1.3.1" level="project" />
-    <orderEntry type="library" name="Maven: com.vividsolutions:jts:1.13" level="project" />
-    <orderEntry type="library" scope="TEST" name="Maven: junit:junit:4.12" level="project" />
-    <orderEntry type="library" scope="TEST" name="Maven: org.hamcrest:hamcrest-core:1.3" level="project" />
-    <orderEntry type="library" name="Maven: com.google.gwt:gwt-user:2.1.1" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-grid:17.1" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-main:17.1" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-api:17.1" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-shapefile:17.1" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-data:17.1" level="project" />
-    <orderEntry type="library" name="Maven: org.jdom:jdom:1.1.3" level="project" />
-    <orderEntry type="library" name="Maven: org.geotools:gt-swing:17.1" level="project" />
     <orderEntry type="library" name="Maven: org.geotools:gt-render:17.1" level="project" />
     <orderEntry type="library" name="Maven: org.geotools:gt-coverage:17.1" level="project" />
     <orderEntry type="library" name="Maven: javax.media:jai_imageio:1.1" level="project" />
@@ -80,6 +78,39 @@
     <orderEntry type="library" name="Maven: commons-io:commons-io:2.1" level="project" />
     <orderEntry type="library" name="Maven: org.geotools:gt-cql:17.1" level="project" />
     <orderEntry type="library" name="Maven: com.miglayout:miglayout:swing:3.7" level="project" />
-    <orderEntry type="library" name="Maven: org.mongodb:mongo-java-driver:3.2.0" level="project" />
+    <orderEntry type="library" name="Maven: org.geotools:gt-epsg-hsql:17.1" level="project" />
+    <orderEntry type="library" name="Maven: org.hsqldb:hsqldb:2.3.0" level="project" />
+    <orderEntry type="library" name="Maven: com.vividsolutions:jts:1.13" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-map:3.13.0" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-core:1.7.15" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-values:1.5.5" level="project" />
+    <orderEntry type="module-library">
+      <library name="Maven: com.sun.java:tools:1.8.0_73">
+        <CLASSES>
+          <root url="jar:///Library/Java/JavaVirtualMachines/jdk1.8.0_73.jdk/Contents/Home/lib/tools.jar!/" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+      </library>
+    </orderEntry>
+    <orderEntry type="library" name="Maven: com.squareup:javapoet:1.5.1" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-threads:1.7.7" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:affinity:3.0.5" level="project" />
+    <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.7.14" level="project" />
+    <orderEntry type="library" name="Maven: com.intellij:annotations:12.0" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-wire:1.7.30" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-bytes:1.7.34" level="project" />
+    <orderEntry type="library" name="Maven: net.openhft:chronicle-algorithms:1.1.8" level="project" />
+    <orderEntry type="library" name="Maven: net.java.dev.jna:jna:4.2.1" level="project" />
+    <orderEntry type="library" name="Maven: net.java.dev.jna:jna-platform:4.2.1" level="project" />
+    <orderEntry type="library" name="Maven: com.thoughtworks.xstream:xstream:1.4.9" level="project" />
+    <orderEntry type="library" name="Maven: xmlpull:xmlpull:1.1.3.1" level="project" />
+    <orderEntry type="library" name="Maven: xpp3:xpp3_min:1.1.4c" level="project" />
+    <orderEntry type="library" name="Maven: org.codehaus.jettison:jettison:1.3.7" level="project" />
+    <orderEntry type="library" name="Maven: stax:stax-api:1.0.1" level="project" />
+    <orderEntry type="library" name="Maven: org.ops4j.pax.url:pax-url-aether:2.4.5" level="project" />
+    <orderEntry type="library" name="Maven: org.slf4j:jcl-over-slf4j:1.6.6" level="project" />
+    <orderEntry type="library" scope="TEST" name="Maven: junit:junit:4.12" level="project" />
+    <orderEntry type="library" scope="TEST" name="Maven: org.hamcrest:hamcrest-core:1.3" level="project" />
   </component>
 </module>

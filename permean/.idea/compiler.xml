@@ -25,8 +25,16 @@
         <processorPath useClasspath="true" />
         <module name="permean" />
       </profile>
+      <profile default="false" name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="true" />
+        <module name="Permean" />
+      </profile>
     </annotationProcessing>
     <bytecodeTargetLevel>
+      <module name="Permean" target="1.8" />
       <module name="permean" target="1.8" />
     </bytecodeTargetLevel>
   </component>

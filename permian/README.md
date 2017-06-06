@@ -1,0 +1,1 @@
+This is all the ext-js stuff that was created for the backstarter project for the crowd to claim regions.
