@@ -13,15 +13,20 @@ import java.util.List;
 @Data
 @Entity
 public class Cell extends BaseEntity {
+
+
+    private final int parentSize;
     @ManyToMany
     @OrderColumn(name="sequence")
     private List<Vertex> vertices;
 
     double area;
 
-    public Cell(List<Vertex> vertices, double area) {
+    public Cell(String id, List<Vertex> vertices, int parentSize, double area) {
+        setId(id);
         this.vertices = vertices;
         this.area = area;
+        this.parentSize = parentSize;
     }
 
 }

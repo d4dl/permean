@@ -1,72 +1,70 @@
 package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Vertex;
-import org.apfloat.Apfloat;
-import org.apfloat.ApfloatMath;
 
 import java.io.Serializable;
 
-import static org.apfloat.ApfloatMath.*;
+import static java.lang.StrictMath.*;
 
 /**
  * Created by joshuadeford on 5/30/17.
  */
 public class Position implements Serializable {
-    public static final Apfloat π = ApfloatMath.pi(1000);
-    public static final Apfloat convert = π.divide(new Apfloat(180, 200));
-    public static final Apfloat ONE = new Apfloat(2, Apfloat.INFINITE);
-    public static final Apfloat TWO = new Apfloat(2, Apfloat.INFINITE);
+    public static final double π = PI;
+    public static final double convert = PI/180;
     private Vertex vertex;
     private int vertexIndex;
 
     //Latitude the angle in radians between the equatorial plane and the straight line that passes through that point and through (or close to) the center of the Earth
-    private final Apfloat φ;
+    private final double φ;
 
     //Longitude the angle in radians east or west of a reference meridian to another meridian that passes through that point
-    private final Apfloat λ;
+    private final double λ;
 
-    public Position(Apfloat φ, Apfloat λ) {
+    public Position(double φ, double λ) {
         this.φ = φ;
         this.λ =  λ;
+    }
+
+    public Position(double φ, double λ, Vertex vertex) {
+        this(φ, λ);
+        this.vertex = vertex;
     }
 
 
     /**
      * Returns the position halfway between this position and another.
      * Chiefly used to test `interpolate`.
+     */
     public Position midpoint(Position pos2) {
-     Apfloat Bx = Math.cos(pos2.φ) * Math.cos(pos2.λ - this.λ);
-     Apfloat By = Math.cos(pos2.φ) * Math.sin(pos2.λ - this.λ);
+        double Bx = Math.cos(pos2.φ) * Math.cos(pos2.λ - this.λ);
+        double By = Math.cos(pos2.φ) * Math.sin(pos2.λ - this.λ);
 
         return new Position(
                         atan2(sin(this.φ) + sin(pos2.φ), sqrt((cos(this.φ) + Bx) * (cos(this.φ) + Bx) + By * By)),
                         this.λ + atan2(By, cos(this.φ) + Bx));
     }
-     */
 
     /**
      * Returns the arc length between this and another position.
      *
      * @return {number} arc length
      */
-    public Apfloat distance(Position other) {
-        Apfloat latDiff = this.φ.subtract(other.φ);
-        Apfloat halfLat = latDiff.divide(TWO);
-        Apfloat lngDiff = this.λ.subtract(other.λ);
-        Apfloat halfLng = lngDiff.divide(TWO);
-        Apfloat powSinLng = pow(sin(halfLng), TWO);
-        Apfloat powSinLat = pow(sin(halfLat), TWO);
-        Apfloat product = cos(this.φ).multiply(cos(other.φ)).multiply(powSinLng);
-        return TWO.multiply(asin(sqrt(powSinLat.add(product))));
+    public double distance(Position other) {
+        return 2 * asin(sqrt(
+                pow(sin((this.φ - other.φ) / 2), 2) +
+                        cos(this.φ) * cos(other.φ) * pow(sin((this.λ - other.λ) / 2), 2)
+        ));
     }
 
     /**
      * Returns the course between this position and another.
      *
      * @returns Course course
+     */
     public Course course(Position other) {
-     Apfloat distance = this.distance(other);
-     Apfloat heading;
+        double distance = this.distance(other);
+        double heading;
 
         if (sin(other.λ - this.λ) < 0) {
             heading = acos((sin(other.φ) - sin(this.φ) * cos(distance)) / (sin(distance) * cos(this.φ)));
@@ -76,7 +74,6 @@ public class Position implements Serializable {
 
         return new Course(distance, heading);
     }
-     */
 
 
     /**
@@ -86,26 +83,20 @@ public class Position implements Serializable {
      * @param {number} d - number of times to divide the segment between the positions
      * @param {ArrayBuffer} buf - buffer in which to store the result
      */
-    public void interpolate(Position other, int d, Apfloat[] buf) {
-        Apfloat Δ = this.distance(other);
-        Apfloat num = new Apfloat(d, 200);
+    public void interpolate(Position other, double d, double[] buf) {
+        double Δ = this.distance(other);
         for (int i = 1; i < d; i += 1) {
-            Apfloat f = new Apfloat(i, 200).divide(num);
+            double f = i / d;
 
-            Apfloat sinΔ = sin(Δ);
-            Apfloat A = sin((ONE.subtract(f)).multiply(Δ)).divide(sinΔ);
-            Apfloat B = sin(f.multiply(Δ)).divide(sinΔ);
+            double A = sin((1 - f) * Δ) / sin(Δ);
+            double B = sin(f * Δ) / sin(Δ);
 
-            Apfloat cosφ = cos(this.φ);
-            Apfloat cosOtherφ = cos(other.φ);
-            Apfloat cosλ = cos(this.λ);
-            Apfloat cosOtherλ = cos(other.λ);
-            Apfloat x = A.multiply(cosφ).multiply(cosλ).add(B.multiply(cosOtherφ.multiply(cosOtherλ)));
-            Apfloat z = A.multiply(cosφ).multiply(sin(this.λ)).add((B.multiply(cosOtherφ).multiply(sin(other.λ))));
-            Apfloat y = A.multiply(sin(this.φ)).add(B.multiply(sin(other.φ)));
+            double x = A * cos(this.φ) * cos(this.λ) + B * cos(other.φ) * cos(other.λ);
+            double z = A * cos(this.φ) * sin(this.λ) + B * cos(other.φ) * sin(other.λ);
+            double y = A * sin(this.φ) + B * sin(other.φ);
 
-            Apfloat φ = atan2(y, sqrt(pow(x, TWO).add(pow(z, TWO))));
-            Apfloat λ = atan2(z, x);
+            double φ = atan2(y, sqrt(pow(x, 2) + pow(z, 2)));
+            double λ = atan2(z, x);
 
             buf[2 * (i - 1) + 0] = φ;
             buf[2 * (i - 1) + 1] = λ;
@@ -118,47 +109,46 @@ public class Position implements Serializable {
     public Position centroid(Position other1, Position other2) {
         Position[] triangle = new Position[]{this, other1, other2};
         int n = triangle.length;
-        Apfloat len = new Apfloat(triangle.length, 200);
-        Apfloat sum_x = new Apfloat(0, 200);
-        Apfloat sum_z = new Apfloat(0, 200);
-        Apfloat sum_y = new Apfloat(0, 200);
+        double sum_x = 0;
+        double sum_z = 0;
+        double sum_y = 0;
 
         for (int i = 0; i < n; i += 1) {
             Position current = triangle[i];
-            Apfloat i_φ = current.getφ();
-            Apfloat i_λ = current.getλ();
+            double i_φ = current.getφ();
+            double i_λ = current.getλ();
 
-            Apfloat cosi_φ = cos(i_φ);
-            sum_x = sum_x.add(cosi_φ.multiply(cos(i_λ)));
-            sum_z = sum_z.add(cosi_φ.multiply(sin(i_λ)));
-            sum_y = sum_y.add(sin(i_φ));
+            sum_x += cos(i_φ) * cos(i_λ);
+            sum_z += cos(i_φ) * sin(i_λ);
+            sum_y += sin(i_φ);
         }
 
-        Apfloat x = sum_x.divide(len);
-        Apfloat z = sum_z.divide(len);
-        Apfloat y = sum_y.divide(len);
+        double x = sum_x / n;
+        double z = sum_z / n;
+        double y = sum_y / n;
 
-        Apfloat r = sqrt((x.multiply(x)).add(z.multiply(z)).add(y.multiply(y)));
+        double r = sqrt(x * x + z * z + y * y);
 
-        Apfloat φ = asin(y.divide(r));
-        Apfloat λ = atan2(z, x);
+        double φ = asin(y / r);
+        double λ = atan2(z, x);
+
         return new Position(φ, λ);
     }
 
-    public Apfloat getλ() {
+    public double getλ() {
         return λ;
     }
 
-    public Apfloat getφ() {
+    public double getφ() {
         return φ;
     }
 
-    public Apfloat getLat() {
-        return φ.divide(convert);
+    public double getLat() {
+        return φ/convert;
     }
 
-    public Apfloat getLng() {
-        return λ.divide(convert);
+    public double getLng() {
+        return λ/convert;
     }
     public String toString() {
         return getLat() + ", " + getLng() + ",0";

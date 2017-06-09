@@ -58,7 +58,8 @@ public class AreaFinder {
 
             for (int i = 0; i < N; i++) {
                 // remember X = longitude, Y = latitude !
-                coords[i] = new Coordinate(latLngs[i].getLng().doubleValue(), latLngs[i].getLat().doubleValue());
+                Position latLng = latLngs[i];
+                coords[i] = new Coordinate(latLng.getLng(), latLng.getLat());
             }
             // closing coordinate (same as first coord
             coords[N] = new Coordinate(coords[0]);

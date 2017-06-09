@@ -21,9 +21,14 @@ public class Vertex extends BaseEntity {
     int index;
 
 
-    public Vertex(int index, double latitude, double longitude) {
+    public Vertex(String uuid, int index, double latitude, double longitude) {
+        this.setId(uuid);
         this.index = index;
         this.latitude = latitude;
         this.longitude = longitude;
+    }
+
+    public String toString() {
+        return id;
     }
 }
