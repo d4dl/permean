@@ -11,7 +11,9 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.io.Writer;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Created by joshuadeford on 6/6/17.
@@ -19,7 +21,8 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 @Component
 public class DatabaseLoader implements CommandLineRunner {
     boolean running = false;
-    ThreadLocal<StatementWriter> allWriters = new ThreadLocal();
+
+    ConcurrentHashMap<String, StatementWriter> writers = new ConcurrentHashMap();
     int parentSize = 1756;
     //int parentSize = 1756;
     //int parentSize = 2153;
@@ -34,10 +37,19 @@ public class DatabaseLoader implements CommandLineRunner {
     @Autowired
     VertexRepository vertexRepository;
 
+    public static void main(String args) throws Exception {
+        new DatabaseLoader().run(args);
+    }
 
     @Override
     public void run(String... strings) throws Exception {
-        Sphere sphere = new Sphere(parentSize, null);
+        String parentSize = System.getProperty("sphere.divisions");
+        if(parentSize != null) {
+            this.parentSize = Integer.parseInt(parentSize);
+        }
+
+        System.out.println("Creating a sphere with " + this.parentSize + " divisions");
+        Sphere sphere = new Sphere(this.parentSize, this);
         sphere.buildCells();
     }
 
@@ -45,7 +57,22 @@ public class DatabaseLoader implements CommandLineRunner {
         this.running = false;
         int wroteCells = 0;
         int wroteVertices = 0;
-        StatementWriter.closeAll();
+        for(StatementWriter writer : writers.values()) {
+            try {
+                writer.complete();
+                wroteCells += writer.getWroteCellCount();
+                wroteVertices += writer.getWroteVerticesCount();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+        for(StatementWriter writer : writers.values()) {
+            try {
+                writer.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
         System.out.println("Closed writers. Wrote " + wroteCells + " cells and " + wroteVertices + " vertices");
     }
 
@@ -56,10 +83,11 @@ public class DatabaseLoader implements CommandLineRunner {
 
     @NotNull
     private StatementWriter getFileWriter() {
-        StatementWriter writer = allWriters.get();
+        String name = Thread.currentThread().getName();
+        StatementWriter writer = writers.get(name);
         if(writer == null) {
             writer = new StatementWriter(this.parentSize);
-            allWriters.set(writer);
+            writers.put(name, writer);
         }
         return writer;
     }

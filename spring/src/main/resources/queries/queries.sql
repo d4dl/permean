@@ -1,0 +1,1 @@
+select distinct count(v.id) from cell c join cell_vertices cv on cv.cell_id = c.id JOIN vertex v on v.id = cv.vertices_id group by c.id;
