@@ -533,11 +533,32 @@ function findBall($dbLink, $ballID)
  * Gets all the quadrangles that are in the quadrangle
  * defined by the  parameters
  */
+function findGeoQuadrangles($dbLink, $topLatitude=11.7, $bottomLatitude=11.5,$westLongitude=46, $eastLongitude=47) {
+    $sql = "SELECT DISTINCT cell.id cell_id, v2.id vertex_id, v2.latitude, v2.longitude
+            FROM vertex v1
+            JOIN cell_vertices cv1
+              ON cv1.vertices_id = v1.id
+            JOIN cell
+              ON cv1.cell_id = cell.id
+            JOIN cell_vertices cv2
+              ON cv2.cell_id = cell.id
+            JOIN vertex v2
+              ON cv2.vertices_id = v2.id
+            WHERE v1.latitude BETWEEN ".mysqli_escape_string($dbLink, $topLatitude)." AND ".mysqli_escape_string($dbLink, $bottomLatitude)."
+            AND v1.longitude BETWEEN ".mysqli_escape_string($dbLink, $eastLongitude)." AND ".mysqli_escape_string($dbLink, $westLongitude);
+    $result = mysqli_query($dbLink, $sql) or die("Error in query: \n\n$sql - ".mysqli_error($dbLink));
+    return createGeoPolygons($dbLink, $result);
+}
+
+/**
+ * Gets all the quadrangles that are in the quadrangle
+ * defined by the  parameters
+ */
 function findGeoPolygons($dbLink, $topLatitude=11.7, $bottomLatitude=11.5,$westLongitude=46, $eastLongitude=47) {
     $sql = "SELECT  t1.geo_quadrangle_uid uid,
-                    t1.top_latitude top, 
-                    t1.bottom_latitude bottom, 
-                    t1.east_longitude east, 
+                    t1.top_latitude top,
+                    t1.bottom_latitude bottom,
+                    t1.east_longitude east,
                     t1.west_longitude west,
                     t3.backer_token
                     FROM geo_quadrangle t1
@@ -548,7 +569,7 @@ function findGeoPolygons($dbLink, $topLatitude=11.7, $bottomLatitude=11.5,$westL
                     WHERE t1.bottom_latitude <= ".mysqli_escape_string($dbLink, $topLatitude)."
                     AND t1.top_latitude >= ".mysqli_escape_string($dbLink, $bottomLatitude)."
                     AND t1.west_longitude <= ".mysqli_escape_string($dbLink, $eastLongitude)."
-                    AND t1.east_longitude >= ".mysqli_escape_string($dbLink, $westLongitude);
+                    AND t1.east_longitude >= ".mysqli_escape_string($dbLink, $westLongitude)." ORDER BY cell.id, cv2.sequence";
     $result = mysqli_query($dbLink, $sql) or die("Error in query: \n\n$sql - ".mysqli_error($dbLink));
     return createGeoPolygons($dbLink, $result);
 }
@@ -855,19 +876,29 @@ function createBallSpecifications($dbLink, $result)
  */ 
 function createGeoPolygons($dbLink, $result)
 {
-    $quadrangles = array();
+    $polygons = array();
     $numRows = mysqli_num_rows($result);
-    for ($i =0 ; $i < $numRows; $i++) 
-    {
+    $geometry = array();
+    $lastCellId = null;
+    $lastPolygon = null;
+    for ($i =0 ; $i < $numRows; $i++) {
         $row = mysqli_fetch_array($result, MYSQL_ASSOC);
-        $quadrangles[$i] = new GeoPolygon($row["id"],$row["uid"],
-                                 $row["top"],
-                                 $row["bottom"],
-                                 $row["west"],
-                                 $row["east"],
-                                 $row["backer_token"]);
+        $cellId = $row["cell_id"];
+        if($cellId !== $lastCellId) {
+            if($lastPolygon !== null) {
+                $lastPolygon.setPolygon($geometry);
+                $polygons[] = $lastPolygon;
+            }
+            $lastPolygon = new GeoPolygon($cellId, $row["backer_token"]);
+            $geometry = [];
+        }
+        $geometry[] = [$row['latitude'], $row['longitude']];
     }
-    return $quadrangles;
+    if($lastPolygon !== null) {
+        $lastPolygon.setPolygon($geometry);
+        $polygons[] = $lastPolygon;
+    }
+    return $polygons;
 }
 
 function setStewardshipOnQuadrangles($dbLink, $topLatitude, $bottomLatitude, $westLongitude, $eastLongitude) {
@@ -977,24 +1008,27 @@ class Ball
 class GeoPolygon
 {
     var $id;
-    var $uid;
-  var $top;
-  var $bottom;
-
-  var $east;
-  var $west;
+    var $polygon;
 
     //id is the db id
-  function GeoPolygon($id, $uid, $top, $bottom, $west, $east, $backerToken)
-  {
+  function GeoPolygon($id, $backerToken) {
       $this->id = $id;
-      $this->uid = $uid;
-        $this->top = $top;
-        $this->bottom = $bottom;
-        $this->west = $west;
-        $this->east = $east;
-        $this->backerToken = $backerToken;
+      $this->backerToken = $backerToken;
   }
+
+    /**
+     * @return mixed
+     */
+    public function getPolygon() {
+        return $this->polygon;
+    }
+
+    /**
+     * @param mixed $polygon
+     */
+    public function setPolygon($polygon) {
+        $this->polygon = $polygon;
+    }
 
 }
 

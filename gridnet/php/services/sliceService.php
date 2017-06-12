@@ -10,6 +10,13 @@ if($_SERVER['REQUEST_METHOD'] == 'OPTIONS') {
 require_once("location.inc");
 require_once("FieldHandler.php");
 
+if($_REQUEST['action'] == "getCellsInBounds") {
+    $fieldHandler = new FieldHandler();
+    $dbLink = connect_to_RW_location_db();
+    $foundSlices = findGeoPolygons($dbLink, $_REQUEST['top'], $_REQUEST['bottom'], $_REQUEST['west'], $_REQUEST['east']);
+    $output = json_encode($foundSlices);
+}
+
 if($_REQUEST['action'] == "calculateFields") {
     $fieldHandler = new FieldHandler();
     $dbLink = connect_to_RW_location_db();

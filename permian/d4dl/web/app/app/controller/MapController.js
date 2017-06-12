@@ -91,7 +91,7 @@ Ext.define('Permian.controller.MapController', {
                     "Click <b>'Add Selected Regions'</b> to assign yourself as a monitor to those regions.");
                 var bounds = map.getBounds();
                 var params = {
-                    action:'calculateFields',
+                    action:'getCellsInBounds',
                     top:bounds.getNorthEast().lat(),
                     bottom:bounds.getSouthWest().lat(),
                     west:bounds.getSouthWest().lng(),
