@@ -1,0 +1,24 @@
+DROP TABLE IF EXISTS login_token;
+DROP TABLE IF EXISTS profile;
+DROP TABLE IF EXISTS external_user;
+DROP TABLE IF EXISTS external_source;
+DROP TABLE IF EXISTS user_rel;
+DROP TABLE IF EXISTS permission;
+DROP TABLE IF EXISTS user_permission_rel;
+DROP TABLE IF EXISTS user_rel;
+
+DROP TABLE IF EXISTS milestone;
+DROP TABLE IF EXISTS track_log;
+DROP TABLE IF EXISTS track;
+DROP TABLE IF EXISTS ball_user_rel;
+DROP TABLE IF EXISTS ball_track_log;
+DROP TABLE IF EXISTS ball;
+DROP TABLE IF EXISTS ball_spec;
+DROP TABLE IF EXISTS home_base_geo_quadrangle;
+DROP TABLE IF EXISTS stewardship;
+DROP TABLE IF EXISTS transaction;
+DROP TABLE IF EXISTS home_base;
+DROP TABLE IF EXISTS stewardship_purchase_transaction_geo_quadrangle_rel;
+DROP TABLE IF EXISTS stewardship_purchase_transaction;
+DROP TABLE IF EXISTS geo_quadrangle;
+DROP TABLE IF EXISTS user;

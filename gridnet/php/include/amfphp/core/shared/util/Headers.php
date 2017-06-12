@@ -1,0 +1,30 @@
+<?php
+/**
+ * The Headers class includes a static method getHeader available from all services
+ * that allows one to get an AMF header from any service 
+ * like the Flash one
+ * 
+ * @license http://opensource.org/licenses/gpl-license.php GNU Public License
+ * @copyright (c) 2003 amfphp.org
+ * @package flashservices
+ * @subpackage util
+ * @version $Id: Headers.php,v 1.1 2009-01-03 22:03:43 jdeford Exp $
+ */
+class Headers 
+{   
+	function setHeader($key=NULL, $val=NULL)
+	{
+		static $headers = array();
+		if($val !== NULL)
+		{
+			$headers[$key] = $val;
+		}
+		return $headers[$key];
+	}
+	
+	function getHeader($key)
+	{
+		return Headers::setHeader($key);
+	}
+} 
+?>

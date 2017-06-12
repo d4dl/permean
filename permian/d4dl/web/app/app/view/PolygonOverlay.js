@@ -1,8 +1,8 @@
-Ext.define("Permian.view.QuadrangleOverlay", {
+Ext.define("Permian.view.PolygonOverlay", {
     extend: 'Ext.Component',
 
     selected: null,
-    quadrangle: null,
+    polygon: null,
     bounds: null,
     rectOptions: null,
     strokeColor: null,
@@ -11,23 +11,26 @@ Ext.define("Permian.view.QuadrangleOverlay", {
     constructor: function(config) {
         var map = config.map;
         var onSelect = config.onselect;
-        var quadrangle = config.quadrangle;
+        var polygon = config.polygon;
         var backerToken = config.currentBackerToken;
         this.callParent(arguments);
         //this.mapOverlay = new google.maps.GroundOverlay();
         this.rectangle = new google.maps.Rectangle();
         this.selected = false;
-        this.quadrangle = quadrangle;
+        this.polygon = polygon;
 
+        var latLngPolygon = [];
+        for(var i=0; i < polygon.length; i++) {
+            latLngPolygon.push(new google.maps.LatLng(polygon[i]*1));
+        }
 
-        this.bounds = new google.maps.LatLngBounds(new google.maps.LatLng(quadrangle.get("bottom")*1, quadrangle.get("west")*1),
-                                                   new google.maps.LatLng(quadrangle.get("top")*1   , quadrangle.get("east")*1));
+        this.bounds = new google.maps.LatLngBounds(latLngPolygon);
         var fillColor = null;
-        var thisHasABacker = !!this.quadrangle.get("backerToken");
+        var thisHasABacker = !!this.polygon.get("backerToken");
         var thisIsTheBackers = backerToken &&
-            this.quadrangle.set("backerToken", backerToken);
+            this.polygon.set("backerToken", backerToken);
         if(thisIsTheBackers) {
-            fillColor = "#0000FF";//This quadrangle is the backer's
+            fillColor = "#0000FF";//This polygon is the backer's
         } else {
             //Either it has a backer or its totally available.
             fillColor = thisHasABacker ? "#990000" :  "#00FF00"
@@ -62,7 +65,7 @@ Ext.define("Permian.view.QuadrangleOverlay", {
     destroy: function() {
         google.maps.event.clearListeners(this.rectangle, 'click');
         this.selected = null;
-        this.quadrangle = null;
+        this.polygon = null;
         this.bounds = null;
         this.rectOptions = null;
         this.strokeColor = null;

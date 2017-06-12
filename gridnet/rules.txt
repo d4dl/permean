@@ -1,0 +1,38 @@
+- A user can hand-off a Jiyoba to any other user.  If the user isn't already playing it is an invitation.
+- A user can invite a user to play by dropping a home base for that user on the map.
+- A user can move their home base any time, friends playing will see this.
+  On the Jiyoba tab, selecting a Jiyoba pans the user to the Jiyoba and puts a sling on it.<M-D-t_`�>üû!6
+- A user can sling a ball from their home base using a sling on the map
+- A user can see a list of Jiyoba they possess and choose to put them in their satch. They will only see those in thier satch on their phone.
+- If the field allows it, a user can set up auto-bounce which will on their home-base which will always bounce a jiyoba off of their base.... Stewards can turn off the ability to auto-bounce
+- A field is divided up into 64 segments that can contain home bases.  Users can share a home base.
+- Users can purchase a stewardship to as many fields as they want
+- Users can download a free satchel program for their phone and will be able to locate, retrieve and throw any Jiyoba in their vicinity.
+- When a Jiyoba is given to a user, another Jiyoba is placed on the map wether that user was already a participant or not.
+- When a Jiyoba is thrown, another Jiyoba is given to a friend participant that is next on the list of recipients.
+- A global list of potential Jiyoba recipients (all particpanta) is maintained and viewable, these last on the stack will receive a the jiyoba created when another Jiyoba is thrown.
+- When there has been a Jiyoba created for each field, chapter two begins.
+- A user that owns a stewardship for a field can retrieve any of the Jiyoba in that field.
+- Each Jiyoba has a message list associated with it as well as a track log of all the fields it has been in.
+- A user can register interest in a field to be notified when a jiyoba lands there.
+- Stewards are notified when a Jiyoba lands in any of their fields
+- Users are notified when a Jiyoba lands in their home base square
+- Jiyoba have a chain of creation.
+- Jioba start out life in a field 1 field away from their parent field.
+- How many Jiyoba a user has caused to be created or has thrown is maintained.
+- How many miles a user has thrown Jiyoba is maintained.
+- A user can view the history of all Jiyoba ever thrown, or created but not those of Jiyoba given.
+- When a user buys a field, 64 Jiyoba are created in it.
+
+Amber's idea: Create jiyoba for each element.... 
+              Chapter 2 gets the balls back home.
+              Chapter 3 get the elements into alignment.
+
+Users with satchels are masters of retrieval.
+Users with on facebook are masters of the relationships.
+Stewards are masters of the land.
+
+
+TODO:
+Make sure that queries for polygons or jiyoba return the correct quadrangles for fields spanning the prime meridian, equator and poles.
+Make sure entailment method for geo quadrangles also wraps properly... make some unit tests.

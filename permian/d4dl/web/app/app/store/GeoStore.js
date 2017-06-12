@@ -1,6 +1,6 @@
 Ext.define("Permian.store.GeoStore", {
     extend:'Ext.data.Store',
-    model: 'Permian.model.Quadrangle',
+    model: 'Permian.model.Polygon',
 
     proxy:{
         type:'ajax',
@@ -15,9 +15,9 @@ Ext.define("Permian.store.GeoStore", {
         this.callParent(arguments);
         this.on({
             load: function(store, records, successful, eOpts) {
-                Permian.getApplication().fireEvent('quadranglesReceived');
+                Permian.getApplication().fireEvent('polygonsReceived');
             }
         });
     }
 
-});
+})
