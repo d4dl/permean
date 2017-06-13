@@ -78,7 +78,9 @@ public class AreaFinder {
             double area = transformedPolygon.getArea();
             return area;
         } catch (TransformException e) {
-            throw new RuntimeException("Couldn't get area", e);
+            System.out.println("Couldn't get area. Proceeding");
+            e.printStackTrace();
+            return 0d;
         }
     }
 

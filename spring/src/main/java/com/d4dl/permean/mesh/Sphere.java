@@ -113,11 +113,11 @@ public class Sphere {
         getIntercellIndices();
         System.out.println("Finished getting indexes");
         report();
-        populateAreas();
-        timer.cancel();
+        //populateAreas();
         if(databaseLoader != null) {
             saveCells();
         }
+        timer.cancel();
         System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + proxies.length + " proxies and " + savedVertexCount.get() + " vertices.");
     }
@@ -401,15 +401,18 @@ public class Sphere {
     public void saveCells() {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
+        AreaFinder areaFinder = new AreaFinder();
+        areaFinder.getArea(proxies[0].getVertices());
         parallel.forEach(f -> {
             CellProxy proxy = this.proxies[f];
+            double areaAngle = areaFinder.getArea(proxies[f].getVertices());
             proxy.getIntercellIndices(intercellIndices, intercellTriangles);
             Position[] positions = proxies[f].getVertices();
             List<Vertex> vertices = new ArrayList();
             for (int i = 0; i < positions.length; i++) {
                 vertices.add(positions[i].getVertex());
             }
-            Cell cell = new Cell(UUID.randomUUID().toString(), vertices, divisions, proxy.getArea());
+            Cell cell = new Cell(UUID.randomUUID().toString(), vertices, divisions, areaAngle);
             databaseLoader.add(cell);
             savedCellCount.incrementAndGet();
         });
