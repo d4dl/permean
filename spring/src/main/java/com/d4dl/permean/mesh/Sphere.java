@@ -391,6 +391,9 @@ public class Sphere {
                 centroidCount.getAndIncrement();
                 //}
             });
+            if(databaseLoader != null) {
+                databaseLoader.completeVertices();
+            }
             System.out.println("Finished creating centroids");
         }
 
@@ -413,7 +416,11 @@ public class Sphere {
                 vertices.add(positions[i].getVertex());
             }
             Cell cell = new Cell(UUID.randomUUID().toString(), vertices, divisions, areaAngle);
-            databaseLoader.add(cell);
+            try {
+                databaseLoader.add(cell);
+            } catch (Exception e) {
+                throw new RuntimeException("Can't add", e);
+            }
             savedCellCount.incrementAndGet();
         });
         databaseLoader.stop();

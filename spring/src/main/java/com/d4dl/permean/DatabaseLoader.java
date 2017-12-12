@@ -53,30 +53,41 @@ public class DatabaseLoader implements CommandLineRunner {
         sphere.buildCells();
     }
 
+
+    public void completeVertices() {
+        for(StatementWriter writer : writers.values()) {
+            try {
+                writer.completeVertices();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     public void stop() {
         this.running = false;
         int wroteCells = 0;
         int wroteVertices = 0;
         for(StatementWriter writer : writers.values()) {
             try {
-                writer.complete();
+                writer.completeCells();
                 wroteCells += writer.getWroteCellCount();
                 wroteVertices += writer.getWroteVerticesCount();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         for(StatementWriter writer : writers.values()) {
             try {
                 writer.close();
-            } catch (IOException e) {
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
         System.out.println("Closed writers. Wrote " + wroteCells + " cells and " + wroteVertices + " vertices");
     }
 
-    public void add(Cell cell) {
+    public void add(Cell cell) throws Exception {
         StatementWriter writer = getFileWriter();
         writer.add(cell);
     }
