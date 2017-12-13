@@ -96,8 +96,9 @@ public class DatabaseLoader implements CommandLineRunner {
     private StatementWriter getFileWriter() {
         String name = Thread.currentThread().getName();
         StatementWriter writer = writers.get(name);
+        final boolean OFFLINE = true;//Set to false to actually write
         if(writer == null) {
-            writer = new StatementWriter(this.parentSize);
+            writer = new StatementWriter(this.parentSize, OFFLINE);
             writers.put(name, writer);
         }
         return writer;

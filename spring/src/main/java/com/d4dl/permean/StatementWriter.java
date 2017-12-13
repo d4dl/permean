@@ -28,9 +28,16 @@ public class StatementWriter {
     public static int BUFFER_SIZE = 200;
     private int wroteCellCount;
     private int wroteVerticesCount;
+    private boolean offlineMode = false;
 
-    public StatementWriter(int parentSize) {
+    /**
+     *
+     * @param parentSize
+     * @param offlineMode don't really write anything.
+     */
+    public StatementWriter(int parentSize, boolean offlineMode) {
         this.parentSize = parentSize;
+        this.offlineMode = offlineMode;
         String threadName = Thread.currentThread().getName();
         joinConnection = getConnection(threadName, "cell_vertices");
         cellConnection = getConnection(threadName, "cells");
@@ -110,10 +117,12 @@ public class StatementWriter {
     }
 
     private void writeStatement(StringBuffer queryBuffer, Connection conn) throws Exception {
-        try (Statement stmt = conn.createStatement()) {
-            boolean result = stmt.execute(queryBuffer.toString());
-        } catch (Exception e) {
-            throw new RuntimeException("Error executing: " + queryBuffer);
+        if(!offlineMode) {
+            try (Statement stmt = conn.createStatement()) {
+                boolean result = stmt.execute(queryBuffer.toString());
+            } catch (Exception e) {
+                throw new RuntimeException("Error executing: " + queryBuffer);
+            }
         }
     }
 
@@ -150,7 +159,8 @@ public class StatementWriter {
             }
             String fileName = dir + File.separator + threadName + ".sql";
             Writer writer = new BufferedWriter(new java.io.FileWriter(fileName));
-            String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
+            //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
+            String connectionURL = "jdbc:mysql://localhost:3306/plm";
             Connection con= DriverManager.getConnection(connectionURL,"finley","some_pass");
             System.out.println("Created a connection to " + connectionURL);
             return con;

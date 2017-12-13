@@ -151,7 +151,11 @@ public class Position implements Serializable {
         return λ/convert;
     }
     public String toString() {
-        return getLat() + ", " + getLng() + ",0";
+        return toString(0);
+    }
+
+    public String toString(int height) {
+        return "              " + getLat() + ", " + getLng() + ", " + height;
         //return "φ: " + φ + ", λ: " + λ;
     }
 
