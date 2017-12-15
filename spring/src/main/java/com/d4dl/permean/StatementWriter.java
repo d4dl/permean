@@ -103,7 +103,8 @@ public class StatementWriter {
                     if (needComma) {
                         vertexBuffer.append(",\n(");
                     }
-                    vertexBuffer.append("'").append(vertex.getId()).append("',").append("" + vertex.getIndex()).append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
+                    //vertexBuffer.append("'").append(vertex.getId()).append("',").append("" + vertex.getIndex()).append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
+                    vertexBuffer.append("'").append(vertex.getId()).append("',").append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
                     needComma = true;
                     vertexBuffer.append(")");
                 }
@@ -162,7 +163,7 @@ public class StatementWriter {
             //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
             String connectionURL = "jdbc:mysql://localhost:3306/plm";
             Connection con= DriverManager.getConnection(connectionURL,"finley","some_pass");
-            System.out.println("Created a connection to " + connectionURL);
+            //System.out.println("Created a connection to " + connectionURL);
             return con;
         } catch (Exception e) {
             throw new RuntimeException(e);

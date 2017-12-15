@@ -11,26 +11,21 @@ import static java.lang.StrictMath.*;
  */
 public class Position implements Serializable {
     public static final double π = PI;
-    public static final double convert = PI/180;
+    public static final double LAT_CONVERT = 90 * 2/π;
+    public static final double LNG_CONVERT = 180/PI;
     private Vertex vertex;
     private int vertexIndex;
 
-    //Latitude the angle in radians between the equatorial plane and the straight line that passes through that point and through (or close to) the center of the Earth
+    //Latitude (elevation angle) the angle in radians between the equatorial plane and the straight line that passes through that point and through (or close to) the center of the Earth
     private final double φ;
 
-    //Longitude the angle in radians east or west of a reference meridian to another meridian that passes through that point
+    //Longitude (azimuthal angle) the angle in radians east or west of a reference meridian to another meridian that passes through that point
     private final double λ;
 
     public Position(double φ, double λ) {
         this.φ = φ;
         this.λ =  λ;
     }
-
-    public Position(double φ, double λ, Vertex vertex) {
-        this(φ, λ);
-        this.vertex = vertex;
-    }
-
 
     /**
      * Returns the position halfway between this position and another.
@@ -106,17 +101,21 @@ public class Position implements Serializable {
     /**
      * Returns the center of the triangle formed by this point and the other 2
      */
-    public Position centroid(Position other1, Position other2) {
+    public Position centroid(int index, Position other1, Position other2) {
         Position[] triangle = new Position[]{this, other1, other2};
         int n = triangle.length;
         double sum_x = 0;
         double sum_z = 0;
         double sum_y = 0;
+        StringBuffer buffer = new StringBuffer();
 
         for (int i = 0; i < n; i += 1) {
             Position current = triangle[i];
             double i_φ = current.getφ();
             double i_λ = current.getλ();
+
+            buffer.append("[").append(i_φ).append(", ");
+            buffer.append(i_λ).append("]");
 
             sum_x += cos(i_φ) * cos(i_λ);
             sum_z += cos(i_φ) * sin(i_λ);
@@ -132,6 +131,7 @@ public class Position implements Serializable {
         double φ = asin(y / r);
         double λ = atan2(z, x);
 
+        //System.out.println("Creating centroid at " + index + " " + φ + ", " + λ + " from " + buffer);
         return new Position(φ, λ);
     }
 
@@ -144,20 +144,16 @@ public class Position implements Serializable {
     }
 
     public double getLat() {
-        return φ/convert;
+        //return 90 * (cos(φ) / π) * (φ < 0 ? -1 : 1);
+        //return φ * UNIT;
+        //return sin(φ) * 90;
+        return 90 - (90 - (φ * LAT_CONVERT));
     }
 
     public double getLng() {
-        return λ/convert;
-    }
-    public String toString() {
-        return toString(0);
+        return 180 * (λ / PI);
     }
 
-    public String toString(int height) {
-        return "              " + getLat() + ", " + getLng() + ", " + height;
-        //return "φ: " + φ + ", λ: " + λ;
-    }
 
     public Vertex getVertex() {
         return vertex;

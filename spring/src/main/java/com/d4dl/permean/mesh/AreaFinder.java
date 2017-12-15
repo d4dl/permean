@@ -1,5 +1,6 @@
 package com.d4dl.permean.mesh;
 
+import com.d4dl.permean.data.Vertex;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
@@ -49,20 +50,16 @@ public class AreaFinder {
         //System.out.println("Polygon area: " + area);
     }
 
-    public double getArea(Position[] latLngs)  {
+    public double getArea(Vertex[] latLng)  {
         try {
-            final int N = latLngs.length;
-
             // Create the polygon
-            Coordinate[] coords = new Coordinate[N + 1];
+            Coordinate[] coords = new Coordinate[latLng.length + 1];
 
-            for (int i = 0; i < N; i++) {
-                // remember X = longitude, Y = latitude !
-                Position latLng = latLngs[i];
-                coords[i] = new Coordinate(latLng.getLng(), latLng.getLat());
+            for (int i = 0; i < latLng.length; i++) {
+                coords[i] = new Coordinate(latLng[i].getLatitude(), latLng[i].getLongitude());
             }
             // closing coordinate (same as first coord
-            coords[N] = new Coordinate(coords[0]);
+            coords[coords.length - 1] = coords[0];
 
             LinearRing polygonBoundary = geomFactory.createLinearRing(coords);
             LinearRing[] polygonHoles = null;

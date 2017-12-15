@@ -1,10 +1,14 @@
 package com.d4dl.permean.mesh;
 
+import com.d4dl.permean.data.Vertex;
+
 import java.io.Serializable;
+import java.util.Arrays;
 import java.util.Map;
+import java.util.UUID;
 
 /**
- * Created by joshuadeford on 5/29/17.
+ * Provides functionality to create and track data about a cell that will be used to create a cell later.
  */
 public class CellProxy implements Serializable {
 
@@ -12,8 +16,10 @@ public class CellProxy implements Serializable {
     private int index;
     private final boolean isPentagon;
     private CellProxy[] adjacentCells;
-    private Position position;
     private double area;
+    //Barycenter position
+    private Position barycenter;
+    private String name;
 
     CellProxy(Sphere parent, int index) {
         this.parent = parent;
@@ -36,25 +42,13 @@ public class CellProxy implements Serializable {
         }
     }
 
-    public CellProxy[] getAdjacentCells() {
-        return adjacentCells;
-    }
-
-    public void setAdjacentCells(CellProxy[] adjacentCells) {
-        this.adjacentCells = adjacentCells;
-    }
-
     public int getIndex() {
         return index;
     }
 
 
     public CellProxy getAdjacent(int p) {
-        return this.adjacentCells[p];
-    }
-
-    public CellProxy[] getAdjacents() {
-        return this.adjacentCells;
+        return this.adjacentCells[p == adjacentCells.length ? 0 : p];
     }
 
     public void link() {
@@ -202,57 +196,40 @@ public class CellProxy implements Serializable {
     }
 
     /**
-     * Returns a cell's edge vertices and its bounds. Latitudinal coordinates may be
+     * Calculates and returns a cell's edge vertices. Latitudinal coordinates may be
      * greater than π if the cell straddles the meridian across from 0.
      */
-    public Position[] getVertices() {
-        Position[] vertices = new Position[adjacentCells.length];
-        Map<Integer, Position> ifc = this.parent.getIntercellCentroids();
-        Map<Integer, Integer> ifi = this.parent.getIntercellIndices();
+    public Vertex[] getVertices(Map<int[], Vertex> sharedVertexMap) {
+        Vertex[] vertices = new Vertex[adjacentCells.length];
 
-        for (int v = 0; v < this.adjacentCells.length; v++) {
-            vertices[v] = ifc.get(ifi.get(6 * index + v));
+        for(int i=0; i < adjacentCells.length; i++) {
+            int firstIndex = i;
+            int secondIndex = i + 1;
+            CellProxy firstAdjacent = adjacentCells[firstIndex];
+            CellProxy secondAdjacent = adjacentCells[secondIndex == adjacentCells.length ? 0 : secondIndex];
+            //The key of the vertex is the sorted index array of the three cells that share the
+            //vertex.  It should be calculated only once then placed in the map for retrieval by
+            //the other two cells that share the vertex.
+            int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
+            Arrays.sort(sharedVertexKey);
+            Vertex sharedVertex = sharedVertexMap.get(sharedVertexKey);
+            vertices[i] = sharedVertex;
         }
 
         return vertices;
     }
 
 
-    public int[] getVertexIndexes() {
-        int[] vertices = new int[adjacentCells.length];
-        Map<Integer, Integer> ifi = this.parent.getIntercellIndices();
-
-        for (int v = 0; v < this.adjacentCells.length; v++) {
-            vertices[v] = ifi.get(6 * index + v);
-        }
-
-        return vertices;
-    }
-
-    public Position[] getLatLon() {
-        Position[] vertices = new Position[adjacentCells.length];
-
-        Map<Integer, Position> ifc = this.parent.getIntercellCentroids();
-        Map<Integer, Integer> ifi = this.parent.getIntercellIndices();
-
-        for (int v = 0; v < this.adjacentCells.length; v++) {
-            Position position = ifc.get(ifi.get(6 * index + v));
-            vertices[v] = position;
-        }
-
-        return vertices;
-    }
-
-
-    public String toString() {
-        Position[] vertices = getVertices();
+    public String kmlString(int height, Map<int[], Vertex> sharedVertexMap) {
+        Vertex[] vertices = getVertices(sharedVertexMap);
         StringBuffer buff = new StringBuffer();
         for (int i = 0; i < vertices.length; i++) {
             if(i > 0) {
-                buff.append(",");
+                buff.append("\n");
             }
-            buff.append(vertices[i]);
+            buff.append(vertices[i].kmlString(height));
         }
+        buff.append(vertices[0].kmlString(height));//Make the first one also last.
         return buff.toString();
     }
 
@@ -277,123 +254,60 @@ public class CellProxy implements Serializable {
     }
     */
 
-    public double getArea() {
-        return area;
+    /**
+     * Each triangle's vertices are three neighboring cell's barycenters.
+     * They are used to calculate the vertex.
+     */
+    public void populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
+
+        for(int i=0; i < adjacentCells.length; i++) {
+            CellProxy firstAdjacent = getAdjacent(i);
+            CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
+            //The key of the vertex is the sorted index array of the three cells that share the
+            //vertex.  It should be calculated only once then placed in the map for retrieval by
+            //the other two cells that share the vertex.
+            int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
+            Arrays.sort(sharedVertexKey);
+            Vertex sharedVertex = sharedVertexMap.get(sharedVertexKey);
+            if(sharedVertex == null) {
+                //These three positions represent the triangle whose vertices are the three barycenters
+                //that can be used to calculate the centroid of said triangle which is the vertex that
+                //the three cells share.
+                Position firstPos = parent.getCellProxies()[this.getIndex()].getBarycenter();
+                Position secondPos = parent.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
+                Position thirdPos = parent.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
+                Position centroid = firstPos.centroid(index, secondPos, thirdPos);
+
+                sharedVertex = new Vertex(UUID.randomUUID().toString(), centroid.getLat(), centroid.getLng());
+                sharedVertexMap.put(sharedVertexKey, sharedVertex);
+            }
+        }
+    }
+
+    public Position getBarycenter() {
+        return barycenter;
+    }
+
+    public void setBarycenter(double φ, double λ) {
+        this.barycenter = new Position(φ, λ);
+    }
+
+    public void setName(String name) {
+        if(this.name != null) {
+            throw new IllegalStateException("The cell " + this.name + " cannot be renamed to " + name);
+        }
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
     }
 
     public void setArea(double area) {
         this.area = area;
     }
 
-    public void getIntercellTriangles(Map<Integer, Integer> intercellTriangles) {
-        if (index > 1) { // not North or South
-            int n1i = this.getAdjacent(0).getIndex();
-            int n2i = this.getAdjacent(1).getIndex();
-            int n3i = this.getAdjacent(2).getIndex();
-            int f1 = index * 2 - 4;
-            int f2 = index * 2 - 3;
-
-            intercellTriangles.put(f1 * 3 + 0, n2i);
-            intercellTriangles.put(f1 * 3 + 1, n1i);
-            intercellTriangles.put(f1 * 3 + 2, index);
-
-            intercellTriangles.put(f2 * 3 + 0, n3i);
-            intercellTriangles.put(f2 * 3 + 1, n2i);
-            intercellTriangles.put(f2 * 3 + 2, index);
-        }
-
-    }
-
-    public Position getIntercellCentroids(Map<Integer, Integer> triangles, int centroidIndex) {
-        int cellIndex = 3 * centroidIndex;
-        CellProxy secondCell = parent.getCellProxies()[triangles.get(cellIndex + 1)];
-        CellProxy thirdCell = parent.getCellProxies()[triangles.get(cellIndex + 2)];
-
-        //System.out.println("Getting centroid: " + centroidIndex + " and fp index " + this.getIndex());
-        Position firstPos = parent.getCellProxies()[this.getIndex()].getPosition();
-        Position secondPos = parent.getCellProxies()[secondCell.getIndex()].getPosition();
-        Position thirdPos = parent.getCellProxies()[thirdCell.getIndex()].getPosition();
-        Position centroid = firstPos.centroid(secondPos, thirdPos);
-        //System.out.println(centroid);
-
-        return centroid;
-    }
-
-    /**
-     * Populates intercell indexes
-     * @param intercellIndices
-     * @param intercellTriangles
-     * @return
-     */
-    public void getIntercellIndices(Map<Integer, Integer> intercellIndices, Map<Integer, Integer> intercellTriangles) {
-        int sides = getAdjacentCells().length;
-
-        for (int s = 0; s < sides; s += 1) {
-            int index = 6 * this.index + s;
-            intercellIndices.put(index, getTriangleIndex(intercellTriangles, s));
-        }
-    }
-
-    public int[] getIntercellIndices(Map<Integer, Integer> intercellTriangles) {
-        int sides = getAdjacentCells().length;
-        int[] indexes = new int[sides];
-
-        for (int s = 0; s < sides; s += 1) {
-            int index = 6 * this.index + s;
-            indexes[s] = index;
-        }
-        return indexes;
-    }
-
-    public int getTriangleIndex(Map<Integer, Integer> triangles, int side) {
-
-        int fi1 = index;
-
-        int sides = getAdjacentCells().length;
-        int fi2 = getAdjacent(side).getIndex();
-        int fi3 = getAdjacent((side + 1) % sides).getIndex();
-
-        int c = faceIndex(fi1, fi2, fi3, triangles);
-        if (c >= 0) return c;
-
-        c = faceIndex(fi2, fi1, fi3, triangles);
-        if (c >= 0) return c;
-
-        c = faceIndex(fi3, fi1, fi2, triangles);
-        if (c >= 0) return c;
-
-        throw new Error("Could not find triangle index for faces: " + fi1 + ", " + fi2 + ", " + fi3);
-
-    }
-
-
-    public int faceIndex(int i, int a1, int a2, Map<Integer, Integer> ts) {
-        int f1 = i * 2 - 4;
-        int f2 = i * 2 - 3;
-        int index = -1;
-
-        if (f1 >= 0 && ((ts.get(f1 * 3 + 1) == a1 || ts.get(f1 * 3 + 1) == a2) &&
-                (ts.get(f1 * 3 + 0) == a1 || ts.get(f1 * 3 + 0) == a2))) {
-            index = f1;
-        }
-
-        if (f2 >= 0 && ((ts.get(f2 * 3 + 1) == a1 || ts.get(f2 * 3 + 1) == a2) &&
-                (ts.get(f2 * 3 + 0) == a1 || ts.get(f2 * 3 + 0) == a2))) {
-            index = f2;
-        }
-
-        return index;
-    }
-
-    public Position getPosition() {
-        return position;
-    }
-
-    public void setPosition(Position position) {
-        this.position = position;
-    }
-
-    public void setPosition(double φ, double λ) {
-        this.position = new Position(φ, λ);
+    public double getArea() {
+        return area;
     }
 }

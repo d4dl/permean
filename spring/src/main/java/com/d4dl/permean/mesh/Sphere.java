@@ -4,7 +4,10 @@ import com.d4dl.permean.DatabaseLoader;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import net.openhft.chronicle.map.ChronicleMap;
+import org.apache.commons.io.FileUtils;
 
+import java.io.File;
+import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -40,26 +43,24 @@ public class Sphere {
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
 
 
-    private int indicesLength = -1;
     private int cellProxiesLength = -1;
-    private int centroidsLength = -1;
-    private int trianglesLength = -1;
+    private int sharedVertexMapLength = -1;
 
-    private AtomicInteger centroidCount = new AtomicInteger(0);
-    private AtomicInteger indexCount = new AtomicInteger(0);
-    private AtomicInteger trianglesCount = new AtomicInteger(0);
+    private AtomicInteger sharedVertexMapCount = new AtomicInteger(0);
 
     public static final double L = acos(sqrt(5) / 5); // the spherical arclength of the icosahedron's edges.
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
 
-    private Map<Integer, Integer> intercellTriangles = null;
-    private Map<Integer, Position> intercellCentroids = null;
-    private Map<Integer, Integer> intercellIndices = null;
+    private Map<int[], Vertex> sharedVertexMap = null;
 
     Timer timer = new Timer();
+    double minLng = Integer.MAX_VALUE;
+    double maxLng = Integer.MIN_VALUE;
+    double minLat = Integer.MAX_VALUE;
+    double maxLat = Integer.MIN_VALUE;
     double minArea = Integer.MAX_VALUE;
     double maxArea = Integer.MIN_VALUE;
-    //private static double AVG_EARTH_RADIUS_MI = 3959;
+    private static double AVG_EARTH_RADIUS_MI = 3959;
 
     public Sphere(int divisions, DatabaseLoader loader) {
         this.divisions = divisions;
@@ -94,7 +95,7 @@ public class Sphere {
             return hexCell;
         });
 
-        System.out.println("Finished creating the hex proxies");
+        System.out.println("Finished creating the cell proxies");
         IntStream.range(0, proxies.length).parallel().forEach(i -> {
             //for(int i=0; i < proxies.length; i++) {
             linkedCellCount.incrementAndGet();
@@ -106,18 +107,18 @@ public class Sphere {
         //for (int i = 0; i < proxies.length; i++) {
         //this.proxies[i].link();
         //}
-        populate();
+        populateBarycenters();//For all the proxies, determine and set their barycenters
         System.out.println("Finished populating");
-        getIntercellCentroids();
+        getSharedVertexMap();
         System.out.println("Finished getting centroids");
-        getIntercellIndices();
         System.out.println("Finished getting indexes");
         report();
-        //populateAreas();
         if(databaseLoader != null) {
             saveCells();
         }
+        outputKML();
         timer.cancel();
+        task.cancel();
         System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + proxies.length + " proxies and " + savedVertexCount.get() + " vertices.");
     }
@@ -125,11 +126,8 @@ public class Sphere {
     private void report() {
         report("Created", proxies.length, createdCellCount.get(), "CellProxies");
         report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
-        report("Created", trianglesLength, trianglesCount.get(), "Triangles");
-        report("Created", centroidsLength, centroidCount.get(), "Centroid");
-        report("Created", indicesLength, indexCount.get(), "Indices");
+        report("Created", sharedVertexMapLength, sharedVertexMapCount.get(), "Shared Vertices");
         report("Saved", proxies.length, savedCellCount.get(), "Cells");
-        report("Saved", centroidsLength, savedVertexCount.get(), "Vertices");
         System.out.print("\n");
     }
 
@@ -165,28 +163,36 @@ public class Sphere {
      *
      * @this {Sphere}
      */
-    public void populate() {
+    public void populateBarycenters() {
         int max_x = 2 * divisions - 1;
         double[] buf = new double[((divisions - 1) * 2)];
 
 
         // Determine position for polar and tropical proxies using only arithmetic.
 
-        proxies[0].setPosition(PI / 2, 0);
-        proxies[1].setPosition(PI / -2, 0);
+        proxies[0].setBarycenter(PI / 2, 0);
+        proxies[0].setName("Pentagon 0 (North)");
+        proxies[1].setBarycenter(PI / -2, 0);
+        proxies[1].setName("Pentagon 1 (South)");
 
+        //Set the other 10 pentagon's barycenters
         for (int s = 0; s < Sphere.PEELS; s += 1) {
             double λNorth = ((double) s) * 2 / 5 * PI;
             double λSouth = ((double) s) * 2 / 5 * PI + PI / 5;
 
-            this.get(s, divisions - 1, 0).setPosition(PI / 2 - L, λNorth);
-            this.get(s, max_x, 0).setPosition(PI / -2 + L, λSouth);
+            CellProxy northernPentagon = this.get(s, divisions - 1, 0);
+            northernPentagon.setBarycenter(PI / 2 - L, λNorth);
+            northernPentagon.setName("Pentagon " + ((s * 2) + 2) + " (northern)");
+            CellProxy southernPentagon = this.get(s, max_x, 0);
+            southernPentagon.setBarycenter(PI / -2 + L, λSouth);
+            southernPentagon.setName("Pentagon " + ((s * 2) + 3) + " (southern)");
         }
 
         // Determine positions for the proxies along the edges using arc interpolation.
 
         if ((divisions - 1) > 0) { // divisions must be at least 2 for there to be proxies between vertices.
 
+            //PEELS is 5 so loop 5 times.
             for (final AtomicInteger s = new AtomicInteger(0); s.get() < Sphere.PEELS; s.incrementAndGet()) {
                 int p = (s.get() + 4) % Sphere.PEELS;
                 int northPole = 0;
@@ -197,48 +203,60 @@ public class Sphere {
                 int previousSoutTropicalPentagon = this.get(p, max_x, 0).getIndex();
 
                 // north pole to current north tropical pentagon
-                this.proxies[northPole].getPosition().interpolate(this.proxies[currentNorthTropicalPentagon].getPosition(), divisions, buf);
+                this.proxies[northPole].getBarycenter().interpolate(this.proxies[currentNorthTropicalPentagon].getBarycenter(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    this.get(s.get(), i - 1, 0).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), i - 1, 0);
+                    cellProxy.setName("North to North Tropical " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous north tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getPosition().interpolate(this.proxies[previousNorthTropicalPentagon].getPosition(), divisions, buf);
+                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousNorthTropicalPentagon].getBarycenter(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    this.get(s.get(), divisions - 1 - i, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), divisions - 1 - i, i);
+                    cellProxy.setName("North Tropical to North Tropical " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous south tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getPosition().interpolate(this.proxies[previousSoutTropicalPentagon].getPosition(), divisions, buf);
+                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousSoutTropicalPentagon].getBarycenter(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    this.get(s.get(), divisions - 1, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), divisions - 1, i);
+                    cellProxy.setName("North Tropical to South Tropical " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current north tropical pentagon to current south tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getPosition().interpolate(this.proxies[currentSouthTropicalPentagon].getPosition(), divisions, buf);
+                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[currentSouthTropicalPentagon].getBarycenter(), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    this.get(s.get(), divisions - 1 + i, 0).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), divisions - 1 + i, 0);
+                    cellProxy.setName("North Tropical to South Tropical " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current south tropical pentagon to previous south tropical pentagon
-                this.proxies[currentSouthTropicalPentagon].getPosition().interpolate(this.proxies[previousSoutTropicalPentagon].getPosition(), divisions, buf);
+                this.proxies[currentSouthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousSoutTropicalPentagon].getBarycenter(), divisions, buf);
                 //for(int i=1; i < divisions; i++) {
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    this.get(s.get(), max_x - i, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), max_x - i, i);
+                    cellProxy.setName("South Tropical to South Tropical " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current south tropical pentagon to south pole
-                this.proxies[currentSouthTropicalPentagon].getPosition().interpolate(this.proxies[southPole].getPosition(), divisions, buf);
+                this.proxies[currentSouthTropicalPentagon].getBarycenter().interpolate(this.proxies[southPole].getBarycenter(), divisions, buf);
                 //for(int i=1; i < divisions; i++) {
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    this.get(s.get(), max_x, i).setPosition(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    CellProxy cellProxy = this.get(s.get(), max_x, i);
+                    cellProxy.setName("South Tropical to South " + s.get());
+                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
             }
@@ -265,18 +283,18 @@ public class Sphere {
                         // which will necessarily belong to
                         // another section.
 
-                        this.proxies[f1].getPosition().interpolate(this.proxies[f2].getPosition(), n1 + 1, buf);
+                        this.proxies[f1].getBarycenter().interpolate(this.proxies[f2].getBarycenter(), n1 + 1, buf);
                         IntStream.range(1, j).parallel().forEach(i -> {
                             int b1 = 2 * (i - 1) + 0;
                             int b2 = 2 * (i - 1) + 1;
-                            this.get(s, x, i).setPosition(buf[b1], buf[b2]);
+                            this.get(s, x, i).setBarycenter(buf[b1], buf[b2]);
                         });
 
-                        this.proxies[f2].getPosition().interpolate(this.proxies[f3].getPosition(), n2 + 1, buf);
+                        this.proxies[f2].getBarycenter().interpolate(this.proxies[f3].getBarycenter(), n2 + 1, buf);
                         IntStream.range(j + 1, divisions).parallel().forEach(i -> {
                             int b1 = 2 * (i - j - 1) + 0;
                             int b2 = 2 * (i - j - 1) + 1;
-                            this.get(s, x, i).setPosition(buf[b1], buf[b2]);
+                            this.get(s, x, i).setBarycenter(buf[b1], buf[b2]);
                         });
                     }
                 }
@@ -301,121 +319,141 @@ public class Sphere {
     }
 
 
-    public void populateAreas() {
-        AreaFinder areaFinder = new AreaFinder();
-        //Prime the thing
-        areaFinder.getArea(proxies[0].getVertices());
 
-        IntStream.range(0, cellProxiesLength).parallel().forEach(i -> {
-            //double area = areaFinder.getArea(proxies[f].getLats(), proxies[f].getLngs());
-            //proxies[f].setArea(area);
-            ////System.out.println("Cell " + i + " area: " + area + " first area: " + proxies[i].getArea());
-            //});
-            //for (int i = 0; i < proxies.length; i++) {
-            double areaAngle = areaFinder.getArea(proxies[i].getVertices());
-            getCell(i).setArea(areaAngle);
-            double areaSide = Math.sqrt(areaAngle);
-            double areaSideRadians = areaSide * (180 / PI);
-            //double sideLengthMI = areaSideRadians * AVG_EARTH_RADIUS_MI;
-            //double areaMiles = sideLengthMI * sideLengthMI;
-            //System.out.println("Cell " + i + " area: " + areaMiles + " sq. mi.");
-            minArea = min(minArea, areaAngle);
-            maxArea = max(maxArea, areaAngle);
-            //System.out.println("Cell " + i + " area: " + areaAngle);
-            //System.out.println("\t<Placemark>\n" +
-            //"\t\t<name>Cell " + i + "</name>\n" +
-            //"\t\t<styleUrl>#m_ylw-pushpin0</styleUrl>\n" +
-            //"\t\t<Polygon>\n" +
-            //"\t\t\t<tessellate>1</tessellate>\n" +
-            //"\t\t\t<outerBoundaryIs>\n" +
-            //"\t\t\t\t<LinearRing>\n" +
-            //"\t\t\t\t\t<coordinates>\n" +
-            //"\t\t\t\t\t\t" + proxies[i]+ "\n" +
-            //"\t\t\t\t\t</coordinates>\n" +
-            //"\t\t\t\t</LinearRing>\n" +
-            //"\t\t\t</outerBoundaryIs>\n" +
-            //"\t\t</Polygon>\n" +
-            //"\t</Placemark>");
-            //}
-        });
+    private void outputKML() {
+        StringBuffer buffer = new StringBuffer();
+        String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly", "transYellowPoly"};
+        buffer.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+                "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
+                "  <Document>\n" +
+                "    <Style id=\"transRedPoly\">\n" +
+                "      <LineStyle>\n" +
+                "        <color>ff0000ff</color>\n" +
+                "      </LineStyle>\n" +
+                "      <PolyStyle>\n" +
+                "        <color>55ff0000</color>\n" +
+                "      </PolyStyle>\n" +
+                "    </Style>\n" +
+                "    <Style id=\"transYellowPoly\">\n" +
+                "      <LineStyle>\n" +
+                "        <color>7f00ffff</color>\n" +
+                "      </LineStyle>\n" +
+                "      <PolyStyle>\n" +
+                "        <color>5500ff00</color>\n" +
+                "      </PolyStyle>\n" +
+                "    </Style>\n" +
+                "    <Style id=\"transBluePoly\">\n" +
+                "      <LineStyle>\n" +
+                "        <color>7dffbb00</color>\n" +
+                "      </LineStyle>\n" +
+                "      <PolyStyle>\n" +
+                "        <color>550000ff</color>\n" +
+                "      </PolyStyle>\n" +
+                "    </Style>\n" +
+                "    <Style id=\"transGreenPoly\">\n" +
+                "      <LineStyle>\n" +
+                "        <color>7f00ff00</color>\n" +
+                "      </LineStyle>\n" +
+                "      <PolyStyle>\n" +
+                "        <color>5500ffff</color>\n" +
+                "      </PolyStyle>\n" +
+                "    </Style>\n"
+        );
+        //for(int i=0; i < proxies.length; i++) {
+        for(int i=0; i < 2000; i++) {
+            buffer.append("    <Placemark>\n" +
+                    "      <name>" + proxies[i].getName() + " " + proxies[i].getArea() + "</name>\n" +
+                    "      <styleUrl>#" + styles[i % styles.length] + "</styleUrl>\n" +
+                    getPolygon(i) +
+                    "    </Placemark>\n");
+        }
+        buffer.append("  </Document>\n" +
+                "</kml>");
+        String fileName = "/Users/joshuadeford/rings.kml";
+        File file = new File(fileName);
+        try {
+            System.out.println("Writing to file: " + fileName);
+            FileUtils.writeStringToFile(file, buffer.toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
-    public Map<Integer, Integer> getIntercellTriangles() {
-        if (intercellTriangles == null) {
-            trianglesLength = ((2 * proxies.length - 4) * 3);
-            intercellTriangles = ChronicleMap
-                    .of(Integer.class, Integer.class)
-                    .name("intercellTriangles")
-                    .entries(trianglesLength)
+    private String getLineString(int i) {
+                return "      <LineString>\n" +
+                "        <tesselate>1</tesselate>\n" +
+                "        <altitudeMode>relativeToGround</altitudeMode>\n" +
+                "        <coordinates>\n" +
+                proxies[i].kmlString(200, sharedVertexMap) + "\n" +
+                "        </coordinates>\n" +
+                "      </LineString>\n";
+    }
+    private String getPolygon(int i) {
+        return "      <Polygon>\n" +
+                "      <outerBoundaryIs>\n" +
+                "      <LinearRing>\n" +
+                "        <tesselate>1</tesselate>\n" +
+                "        <altitudeMode>relativeToGround</altitudeMode>\n" +
+                "        <coordinates>\n" +
+                proxies[i].kmlString(200, sharedVertexMap) + "\n" +
+                "        </coordinates>\n" +
+                "      </LinearRing>\n" +
+                "      </outerBoundaryIs>\n" +
+                "      </Polygon>\n";
+    }
+
+    public Map<int[], Vertex> getSharedVertexMap() {
+        if (sharedVertexMap == null) {
+            sharedVertexMapLength = ((2 * proxies.length - 4) * 3);
+            int[] ints = new int[6];
+            sharedVertexMap = (Map<int[], Vertex>) ChronicleMap
+                    .of(ints.getClass(), Vertex.class)
+                    .averageKeySize(6 * 32)
+                    .averageValue(new Vertex("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 0, 0))
+                    .name("sharedVertexMap")
+                    .entries(sharedVertexMapLength)
                     .create();
 
-            System.out.println("Initialized intercell triangles to: " + intercellTriangles.size() + " triangles.");
-            IntStream.range(0, proxies.length).parallel().forEach(f -> {
-                //for(int f=0; f < length; f++) {
-                proxies[f].getIntercellTriangles(intercellTriangles);
-                trianglesCount.addAndGet(6);
-                //}
-            });
+            System.out.println("Initialized intercell triangles to: " + sharedVertexMap.size() + " triangles.");
+            //IntStream.range(0, proxies.length).parallel().forEach(f -> {
+                for(int f=0; f < proxies.length; f++) {
+                proxies[f].populateSharedVertices(sharedVertexMap);
+                sharedVertexMapCount.addAndGet(6);
+                }
+            //});
 
             System.out.println("Finished creating triangles");
         }
 
-        return intercellTriangles;
-    }
-
-
-    public Map<Integer, Position> getIntercellCentroids() {
-        Map<Integer, Integer> triangles = getIntercellTriangles();
-        if (intercellCentroids == null) {
-            centroidsLength = triangles.size() / 3;
-            intercellCentroids = ChronicleMap
-                    .of(Integer.class, Position.class)
-                    .name("intercellCentroids")
-                    .entries(centroidsLength)
-                    .averageValue(new Position(1d, 1d, new Vertex(UUID.randomUUID().toString(), 1, 1, 1)))
-                    .create();
-            System.out.println("Initialized intercell centroids to: " + intercellCentroids.size() + " centroids.");
-
-            IntStream.range(0, centroidsLength).parallel().forEach(centroidIndex -> {
-                //for(int centroidIndex=0; centroidIndex < length; centroidIndex++) {
-                int triangleIndex = 3 * centroidIndex;
-                int cellIndex = triangles.get(triangleIndex);
-                Position centroid = proxies[cellIndex].getIntercellCentroids(triangles, centroidIndex);
-                if (databaseLoader != null) {
-                    Vertex vertex = new Vertex(UUID.randomUUID().toString(), centroidIndex, centroid.getLat(), centroid.getLng());
-                    databaseLoader.add(vertex);
-                    savedVertexCount.incrementAndGet();
-                    centroid.setVertex(vertex);
-                }
-                intercellCentroids.put(centroidIndex, centroid);
-                centroidCount.getAndIncrement();
-                //}
-            });
-            if(databaseLoader != null) {
-                databaseLoader.completeVertices();
-            }
-            System.out.println("Finished creating centroids");
-        }
-
-        return intercellCentroids;
+        return sharedVertexMap;
     }
 
 
     public void saveCells() {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
-        AreaFinder areaFinder = new AreaFinder();
-        areaFinder.getArea(proxies[0].getVertices());
+        //AreaFinder areaFinder = new AreaFinder();
+        //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
         parallel.forEach(f -> {
             CellProxy proxy = this.proxies[f];
-            double areaAngle = areaFinder.getArea(proxies[f].getVertices());
-            proxy.getIntercellIndices(intercellIndices, intercellTriangles);
-            Position[] positions = proxies[f].getVertices();
-            List<Vertex> vertices = new ArrayList();
-            for (int i = 0; i < positions.length; i++) {
-                vertices.add(positions[i].getVertex());
+            Vertex[] vertices = proxy.getVertices(sharedVertexMap);
+            //double areaAngle = areaFinder.getArea(vertices);
+            //Cell cell = new Cell(UUID.randomUUID().toString(), Arrays.asList(), divisions, areaAngle);
+            Cell cell = new Cell(UUID.randomUUID().toString(), Arrays.asList(), divisions, 0);
+            //double areaSide = Math.sqrt(areaAngle);
+            //double areaSideRadians = areaSide * (180 / PI);
+            //double sideLengthMI = areaSideRadians * AVG_EARTH_RADIUS_MI;
+            //double areaMiles = sideLengthMI * sideLengthMI;
+            //System.out.println("Cell " + proxy.getName() + " area: " + areaMiles + " sq. mi.");
+            //proxy.setArea(areaMiles);
+            //minArea = min(minArea, areaAngle);
+            //maxArea = max(maxArea, areaAngle);
+            for(int i=0; i < vertices.length; i++) {
+                minLat = min(minLat, vertices[i].getLatitude());
+                maxLat = max(maxLat, vertices[i].getLatitude());
+                minLng = min(minLng, vertices[i].getLongitude());
+                maxLng = max(maxLng, vertices[i].getLongitude());
             }
-            Cell cell = new Cell(UUID.randomUUID().toString(), vertices, divisions, areaAngle);
             try {
                 databaseLoader.add(cell);
             } catch (Exception e) {
@@ -424,29 +462,9 @@ public class Sphere {
             savedCellCount.incrementAndGet();
         });
         databaseLoader.stop();
-        System.out.println("Finished saving proxies");
+        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
 
-    public Map<Integer, Integer> getIntercellIndices() {
-        if (intercellIndices == null) {
-            indicesLength = 6 * proxies.length;
-            intercellIndices = ChronicleMap.of(Integer.class, Integer.class)
-                    .name("intercellIndices")
-                    .entries(indicesLength)
-                    .create();
-            System.out.println("Initialized intercell indices to: " + intercellTriangles.size() + " indices.");
-
-            IntStream.range(0, proxies.length).parallel().forEach(f -> {
-                //for(int f=0; f < n; f++) {
-                CellProxy cell = this.proxies[f];
-                cell.getIntercellIndices(intercellIndices, intercellTriangles);
-                indexCount.getAndAdd(cell.getAdjacentCells().length);
-                //}
-            });
-            System.out.println("Finished creating indices");
-        }
-        return intercellIndices;
-    }
 
 
     //public String toString() {
