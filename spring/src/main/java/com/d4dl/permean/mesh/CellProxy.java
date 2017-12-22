@@ -3,9 +3,7 @@ package com.d4dl.permean.mesh;
 import com.d4dl.permean.data.Vertex;
 
 import java.io.Serializable;
-import java.util.Arrays;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 
 /**
  * Provides functionality to create and track data about a cell that will be used to create a cell later.
@@ -258,8 +256,9 @@ public class CellProxy implements Serializable {
      * Each triangle's vertices are three neighboring cell's barycenters.
      * They are used to calculate the vertex.
      */
-    public void populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
+    public List<Vertex> populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
 
+        List<Vertex> addedVertices = new ArrayList();
         for(int i=0; i < adjacentCells.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
             CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
@@ -280,8 +279,11 @@ public class CellProxy implements Serializable {
 
                 sharedVertex = new Vertex(UUID.randomUUID().toString(), centroid.getLat(), centroid.getLng());
                 sharedVertexMap.put(sharedVertexKey, sharedVertex);
+                addedVertices.add(sharedVertex);
             }
         }
+
+        return addedVertices;
     }
 
     public Position getBarycenter() {

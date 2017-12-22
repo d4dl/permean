@@ -3,9 +3,6 @@ package com.d4dl.permean;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.Writer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -21,7 +18,7 @@ public class StatementWriter {
     List<Vertex> vertices = new ArrayList();
     public static final String CELL_INSERT = "INSERT INTO cell (id, area, parent_size) ";
     public static final String JOIN_INSERT = "INSERT INTO cell_vertices (cell_id, vertices_id, sequence) ";
-    public static final String VERTEX_INSERT = "INSERT INTO vertex (id, `index`, latitude, longitude) ";
+    public static final String VERTEX_INSERT = "INSERT INTO vertex (id, latitude, longitude) ";
     Connection joinConnection;
     Connection cellConnection;
     Connection vertexConnection;
@@ -71,7 +68,7 @@ public class StatementWriter {
     }
 
     private void doCells(boolean force) throws Exception {
-        if (force || cells.size() > BUFFER_SIZE && cells.size() > 0) {
+        if ((force && cells.size() > 0) || cells.size() > BUFFER_SIZE ) {
                 StringBuffer joinBuffer = new StringBuffer();
                 StringBuffer cellBuffer = new StringBuffer();
                 boolean needComma = false;
@@ -104,7 +101,7 @@ public class StatementWriter {
                         vertexBuffer.append(",\n(");
                     }
                     //vertexBuffer.append("'").append(vertex.getId()).append("',").append("" + vertex.getIndex()).append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
-                    vertexBuffer.append("'").append(vertex.getId()).append("',").append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
+                    vertexBuffer.append("'").append(vertex.getId()).append("' ,").append("" + vertex.getLatitude()).append(", ").append("" + vertex.getLongitude());
                     needComma = true;
                     vertexBuffer.append(")");
                 }
@@ -120,8 +117,11 @@ public class StatementWriter {
     private void writeStatement(StringBuffer queryBuffer, Connection conn) throws Exception {
         if(!offlineMode) {
             try (Statement stmt = conn.createStatement()) {
-                boolean result = stmt.execute(queryBuffer.toString());
+                String sql = queryBuffer.toString();
+                System.out.println(sql);
+                boolean result = stmt.execute(sql);
             } catch (Exception e) {
+                e.printStackTrace();
                 throw new RuntimeException("Error executing: " + queryBuffer);
             }
         }
@@ -154,12 +154,12 @@ public class StatementWriter {
 
     private Connection getConnection(String threadName, String typeName) {
         try {
-            File dir = new File("." + File.separator + "sql" + File.separator + typeName);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
-            String fileName = dir + File.separator + threadName + ".sql";
-            Writer writer = new BufferedWriter(new java.io.FileWriter(fileName));
+            //File dir = new File("." + File.separator + "sql" + File.separator + typeName);
+            //if (!dir.exists()) {
+                //dir.mkdirs();
+            //}
+            //String fileName = dir + File.separator + threadName + ".sql";
+            //Writer writer = new BufferedWriter(new java.io.FileWriter(fileName));
             //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
             String connectionURL = "jdbc:mysql://localhost:3306/plm";
             Connection con= DriverManager.getConnection(connectionURL,"finley","some_pass");

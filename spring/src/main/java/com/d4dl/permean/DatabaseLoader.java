@@ -10,10 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.io.Writer;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Created by joshuadeford on 6/6/17.
@@ -70,6 +67,7 @@ public class DatabaseLoader implements CommandLineRunner {
         int wroteVertices = 0;
         for(StatementWriter writer : writers.values()) {
             try {
+                writer.completeVertices();
                 writer.completeCells();
                 wroteCells += writer.getWroteCellCount();
                 wroteVertices += writer.getWroteVerticesCount();
@@ -96,7 +94,7 @@ public class DatabaseLoader implements CommandLineRunner {
     private StatementWriter getFileWriter() {
         String name = Thread.currentThread().getName();
         StatementWriter writer = writers.get(name);
-        final boolean OFFLINE = true;//Set to false to actually write
+        final boolean OFFLINE = Boolean.parseBoolean(System.getProperty("offline"));
         if(writer == null) {
             writer = new StatementWriter(this.parentSize, OFFLINE);
             writers.put(name, writer);
