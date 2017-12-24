@@ -112,7 +112,7 @@ public class Sphere {
         //}
         populateBarycenters();//For all the proxies, determine and set their barycenters
         System.out.println("Finished populating");
-        getSharedVertexMap();
+        createSharedVertexMap();
         //System.out.println("Finished getting indexes");
         report();
         //outputKML();
@@ -407,41 +407,38 @@ public class Sphere {
                 "      </Polygon>\n";
     }
 
-    public Map<int[], Vertex> getSharedVertexMap() {
-        if (sharedVertexMap == null) {
-            sharedVertexMapLength = ((2 * proxies.length - 4) * 3);
-            int[] ints = new int[6];
-            System.out.println("Initializing shared vertex map ");
-            reportingPaused = true;
-            try {
-                sharedVertexMap = (Map<int[], Vertex>) ChronicleMap
-                        .of(ints.getClass(), Vertex.class)
-                        .averageKeySize(6 * 32)
-                        .averageValue(new Vertex("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 0, 0))
-                        .name("sharedVertexMap")
-                        .entries(sharedVertexMapLength)
-                        .createPersistedTo(new File("./sharedVertexMap_divisions_" + divisions + ".dat"));
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-
-            System.out.println("Initialized shared vertex map " + sharedVertexMapLength + " vertices.");
-            reportingPaused = false;
-            IntStream.range(0, proxies.length).parallel().forEach(f -> {
-                //for(int f=0; f < proxies.length; f++) {
-                List<Vertex> verticesAdded = proxies[f].populateSharedVertices(sharedVertexMap);
-                for(Vertex vertex : verticesAdded) {
-                    databaseLoader.add(vertex);
-                }
-                sharedVertexMapCount.addAndGet(verticesAdded.size());
-            //    }
-
-            });
-            databaseLoader.completeVertices();
-
-            System.out.println("Finished creating shared vertex map");
+    public Map<int[], Vertex> createSharedVertexMap() {
+        sharedVertexMapLength = 12 * (divisions) + 3;
+        int[] ints = new int[6];
+        System.out.println("Initializing shared vertex map ");
+        reportingPaused = true;
+        try {
+            sharedVertexMap = (Map<int[], Vertex>) ChronicleMap
+                    .of(ints.getClass(), Vertex.class)
+                    .averageKeySize(6 * 32)
+                    .averageValue(new Vertex("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 0, 0))
+                    .name("sharedVertexMap")
+                    .entries(sharedVertexMapLength)
+                    .createPersistedTo(new File("./sharedVertexMap_divisions_" + divisions + ".dat"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
+        System.out.println("Initialized shared vertex map " + sharedVertexMapLength + " vertices.");
+        reportingPaused = false;
+        IntStream.range(0, proxies.length).parallel().forEach(f -> {
+            //for(int f=0; f < proxies.length; f++) {
+            List<Vertex> verticesAdded = proxies[f].populateSharedVertices(sharedVertexMap);
+            for (Vertex vertex : verticesAdded) {
+                databaseLoader.add(vertex);
+            }
+            sharedVertexMapCount.addAndGet(verticesAdded.size());
+            //    }
+
+        });
+        databaseLoader.completeVertices();
+
+        System.out.println("Finished creating shared vertex map");
         return sharedVertexMap;
     }
 
@@ -467,10 +464,10 @@ public class Sphere {
             //minArea = min(minArea, areaAngle);
             //maxArea = max(maxArea, areaAngle);
             for (int i = 0; i < vertices.length; i++) {
-                minLat = min(minLat, vertices[i].getLatitude());
-                maxLat = max(maxLat, vertices[i].getLatitude());
-                minLng = min(minLng, vertices[i].getLongitude());
-                maxLng = max(maxLng, vertices[i].getLongitude());
+                minLat = min(minLat, vertices[i].getLatitude().doubleValue());
+                maxLat = max(maxLat, vertices[i].getLatitude().doubleValue());
+                minLng = min(minLng, vertices[i].getLongitude().doubleValue());
+                maxLng = max(maxLng, vertices[i].getLongitude().doubleValue());
             }
             try {
                 databaseLoader.add(cell);

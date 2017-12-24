@@ -256,7 +256,7 @@ public class CellProxy implements Serializable {
      * Each triangle's vertices are three neighboring cell's barycenters.
      * They are used to calculate the vertex.
      */
-    public List<Vertex> populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
+    public synchronized List<Vertex> populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
 
         List<Vertex> addedVertices = new ArrayList();
         for(int i=0; i < adjacentCells.length; i++) {

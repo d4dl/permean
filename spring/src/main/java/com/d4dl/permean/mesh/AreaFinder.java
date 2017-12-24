@@ -56,7 +56,7 @@ public class AreaFinder {
             Coordinate[] coords = new Coordinate[latLng.length + 1];
 
             for (int i = 0; i < latLng.length; i++) {
-                coords[i] = new Coordinate(latLng[i].getLatitude(), latLng[i].getLongitude());
+                coords[i] = new Coordinate(latLng[i].getLatitude().doubleValue(), latLng[i].getLongitude().doubleValue());
             }
             // closing coordinate (same as first coord
             coords[coords.length - 1] = coords[0];
