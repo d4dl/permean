@@ -1,8 +1,11 @@
 package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Vertex;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.util.*;
 
 /**
@@ -197,7 +200,7 @@ public class CellProxy implements Serializable {
      * Calculates and returns a cell's edge vertices. Latitudinal coordinates may be
      * greater than π if the cell straddles the meridian across from 0.
      */
-    public Vertex[] getVertices(Map<int[], Vertex> sharedVertexMap) {
+    public Vertex[] getVertices(Map<String, Vertex> sharedVertexMap) {
         Vertex[] vertices = new Vertex[adjacentCells.length];
 
         for(int i=0; i < adjacentCells.length; i++) {
@@ -210,7 +213,8 @@ public class CellProxy implements Serializable {
             //the other two cells that share the vertex.
             int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
             Arrays.sort(sharedVertexKey);
-            Vertex sharedVertex = sharedVertexMap.get(sharedVertexKey);
+            String uuid = createStableUUID(sharedVertexKey);
+            Vertex sharedVertex = sharedVertexMap.get(uuid);
             vertices[i] = sharedVertex;
         }
 
@@ -218,7 +222,7 @@ public class CellProxy implements Serializable {
     }
 
 
-    public String kmlString(int height, Map<int[], Vertex> sharedVertexMap) {
+    public String kmlString(int height, Map<String, Vertex> sharedVertexMap) {
         Vertex[] vertices = getVertices(sharedVertexMap);
         StringBuffer buff = new StringBuffer();
         for (int i = 0; i < vertices.length; i++) {
@@ -256,10 +260,10 @@ public class CellProxy implements Serializable {
      * Each triangle's vertices are three neighboring cell's barycenters.
      * They are used to calculate the vertex.
      */
-    public synchronized List<Vertex> populateSharedVertices(Map<int[], Vertex> sharedVertexMap) {
+    public List<Vertex> populateSharedVertices(Map<String, Vertex> sharedVertexMap) {
 
         List<Vertex> addedVertices = new ArrayList();
-        for(int i=0; i < adjacentCells.length; i++) {
+        for (int i = 0; i < adjacentCells.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
             CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
             //The key of the vertex is the sorted index array of the three cells that share the
@@ -267,8 +271,9 @@ public class CellProxy implements Serializable {
             //the other two cells that share the vertex.
             int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
             Arrays.sort(sharedVertexKey);
-            Vertex sharedVertex = sharedVertexMap.get(sharedVertexKey);
-            if(sharedVertex == null) {
+            String stableUUID = createStableUUID(sharedVertexKey);
+            Vertex sharedVertex = sharedVertexMap.get(stableUUID);
+            if (sharedVertex == null) {
                 //These three positions represent the triangle whose vertices are the three barycenters
                 //that can be used to calculate the centroid of said triangle which is the vertex that
                 //the three cells share.
@@ -276,14 +281,23 @@ public class CellProxy implements Serializable {
                 Position secondPos = parent.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
                 Position thirdPos = parent.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
                 Position centroid = firstPos.centroid(index, secondPos, thirdPos);
-
-                sharedVertex = new Vertex(UUID.randomUUID().toString(), centroid.getLat(), centroid.getLng());
-                sharedVertexMap.put(sharedVertexKey, sharedVertex);
+                String uuid = stableUUID;
+                sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
+                sharedVertexMap.put(uuid, sharedVertex);
                 addedVertices.add(sharedVertex);
             }
-        }
 
+        }
         return addedVertices;
+    }
+
+    @NotNull
+    private String createStableUUID(int[] sharedVertexKey) {
+        ByteBuffer byteBuffer = ByteBuffer.allocate(32 * 3);
+        IntBuffer intBuffer = byteBuffer.asIntBuffer();
+        intBuffer.put(sharedVertexKey);
+
+        return UUID.nameUUIDFromBytes(byteBuffer.array()).toString();
     }
 
     public Position getBarycenter() {
@@ -292,6 +306,7 @@ public class CellProxy implements Serializable {
 
     public void setBarycenter(double φ, double λ) {
         this.barycenter = new Position(φ, λ);
+        parent.incrementBarycenterCount();
     }
 
     public void setName(String name) {

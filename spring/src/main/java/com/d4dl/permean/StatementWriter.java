@@ -3,6 +3,9 @@ package com.d4dl.permean;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.Writer;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
@@ -14,15 +17,19 @@ import java.util.List;
  */
 public class StatementWriter {
     private final int parentSize;
+    private final Writer joinWriter;
+    private final Writer cellWriter;
+    private final Writer vertexWriter;
+    private final boolean writeFiles;
     List<Cell> cells = new ArrayList();
     List<Vertex> vertices = new ArrayList();
     public static final String CELL_INSERT = "INSERT INTO cell (id, area, parent_size) ";
     public static final String JOIN_INSERT = "INSERT INTO cell_vertices (cell_id, vertices_id, sequence) ";
-    public static final String VERTEX_INSERT = "INSERT INTO vertex (id, latitude, longitude) ";
+    public static final String VERTEX_INSERT = "INSERT IGNORE INTO vertex (id, latitude, longitude) ";
     Connection joinConnection;
     Connection cellConnection;
     Connection vertexConnection;
-    public static int BUFFER_SIZE = 200;
+    public static int BUFFER_SIZE = 20000;
     private int wroteCellCount;
     private int wroteVerticesCount;
     private boolean offlineMode = false;
@@ -32,10 +39,14 @@ public class StatementWriter {
      * @param parentSize
      * @param offlineMode don't really write anything.
      */
-    public StatementWriter(int parentSize, boolean offlineMode) {
+    public StatementWriter(int parentSize, boolean offlineMode, boolean writeFiles) {
         this.parentSize = parentSize;
         this.offlineMode = offlineMode;
+        this.writeFiles = writeFiles;
         String threadName = Thread.currentThread().getName();
+        joinWriter = getFileWriter(threadName, "cell_vertices");
+        cellWriter = getFileWriter(threadName, "cells");
+        vertexWriter = getFileWriter(threadName, "vertices");
         joinConnection = getConnection(threadName, "cell_vertices");
         cellConnection = getConnection(threadName, "cells");
         vertexConnection = getConnection(threadName, "vertices");
@@ -43,6 +54,9 @@ public class StatementWriter {
 
     public void close() throws Exception {
         try {
+            joinWriter.close();
+            cellWriter.close();
+            vertexWriter.close();
             joinConnection.close();
             cellConnection.close();
             vertexConnection.close();
@@ -83,8 +97,8 @@ public class StatementWriter {
                     }
                     cellBuffer.append("'").append(cell.getId()).append("'").append(",").append("" + cell.getArea()).append(",").append("" + parentSize).append(")");
                 }
-                writeStatement(cellBuffer, cellConnection);
-                writeStatement(joinBuffer, joinConnection);
+                writeStatement(cellBuffer, cellConnection, cellWriter);
+                writeStatement(joinBuffer, joinConnection, joinWriter);
                 wroteCellCount += cells.size();
                 cells = new ArrayList();
         }
@@ -105,7 +119,7 @@ public class StatementWriter {
                     needComma = true;
                     vertexBuffer.append(")");
                 }
-                writeStatement(vertexBuffer, vertexConnection);
+                writeStatement(vertexBuffer, vertexConnection, vertexWriter);
                 wroteVerticesCount += vertices.size();
                 vertices = new ArrayList();
             }
@@ -114,16 +128,20 @@ public class StatementWriter {
         }
     }
 
-    private void writeStatement(StringBuffer queryBuffer, Connection conn) throws Exception {
-        if(!offlineMode) {
+    private void writeStatement(StringBuffer queryBuffer, Connection conn, Writer writer) throws Exception {
+        String sql = queryBuffer.toString();
+        if (!offlineMode) {
             try (Statement stmt = conn.createStatement()) {
-                String sql = queryBuffer.toString();
-                System.out.println(sql);
+                //System.out.println(sql);
                 boolean result = stmt.execute(sql);
             } catch (Exception e) {
                 e.printStackTrace();
-                throw new RuntimeException("Error executing: " + queryBuffer);
+                throw new RuntimeException("Error executing query: " + e.getMessage() + "\nQuery:\n" + queryBuffer.substring(0, queryBuffer.length() > 2048 ? 2048 : queryBuffer.length() - 1));
             }
+        }
+        if (writeFiles) {
+            writer.write(sql);
+            writer.write("\n");
         }
     }
 
@@ -152,21 +170,37 @@ public class StatementWriter {
         doVertices();
     }
 
-    private Connection getConnection(String threadName, String typeName) {
+    private Writer getFileWriter(String threadName, String typeName) {
         try {
-            //File dir = new File("." + File.separator + "sql" + File.separator + typeName);
-            //if (!dir.exists()) {
-                //dir.mkdirs();
-            //}
-            //String fileName = dir + File.separator + threadName + ".sql";
-            //Writer writer = new BufferedWriter(new java.io.FileWriter(fileName));
-            //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
-            String connectionURL = "jdbc:mysql://localhost:3306/plm";
-            Connection con= DriverManager.getConnection(connectionURL,"finley","some_pass");
-            //System.out.println("Created a connection to " + connectionURL);
-            return con;
+            if(writeFiles) {
+                File dir = new File("." + File.separator + "sql" + File.separator + typeName);
+                if (!dir.exists()) {
+                    dir.mkdirs();
+                }
+                String fileName = dir + File.separator + threadName + ".sql";
+                Writer writer = new BufferedWriter(new java.io.FileWriter(fileName));
+                return writer;
+            } else {
+                return null;
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private Connection getConnection(String threadName, String typeName) {
+        if(!offlineMode) {
+            try {
+                //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
+                String connectionURL = "jdbc:mysql://localhost:3306/plm";
+                Connection con = DriverManager.getConnection(connectionURL, "finley", "some_pass");
+                //System.out.println("Created a connection to " + connectionURL);
+                return con;
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return null;
         }
     }
 

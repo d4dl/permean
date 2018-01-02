@@ -11,7 +11,6 @@ CREATE TABLE cell (
 
 CREATE TABLE vertex (
   id        VARCHAR(255) NOT NULL,
-  `index` INT NOT NULL UNIQUE,
   latitude  DOUBLE       NOT NULL,
   longitude DOUBLE       NOT NULL,
   PRIMARY KEY (id)

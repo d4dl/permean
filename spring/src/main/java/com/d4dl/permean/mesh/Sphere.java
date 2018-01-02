@@ -3,7 +3,6 @@ package com.d4dl.permean.mesh;
 import com.d4dl.permean.DatabaseLoader;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
-import net.openhft.chronicle.map.ChronicleMap;
 import org.apache.commons.io.FileUtils;
 
 import java.io.File;
@@ -38,9 +37,9 @@ public class Sphere {
     private boolean iterating;
     private boolean reportingPaused = false;
 
-    private AtomicInteger createdCellCount = new AtomicInteger(0);
+    private AtomicInteger createdProxyCount = new AtomicInteger(0);
+    private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
     private AtomicInteger savedCellCount = new AtomicInteger(0);
-    private AtomicInteger savedVertexCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
 
 
@@ -48,11 +47,12 @@ public class Sphere {
     private int sharedVertexMapLength = -1;
 
     private AtomicInteger sharedVertexMapCount = new AtomicInteger(0);
+    private AtomicInteger savedVertexCount = new AtomicInteger(0);
 
     public static final double L = acos(sqrt(5) / 5); // the spherical arclength of the icosahedron's edges.
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
 
-    private Map<int[], Vertex> sharedVertexMap = null;
+    private Map<String, Vertex> sharedVertexMap = null;
 
     Timer timer = new Timer();
     double minLng = Integer.MAX_VALUE;
@@ -90,7 +90,7 @@ public class Sphere {
         timer.schedule(task, 1000, 1000);
 
         Arrays.parallelSetAll(proxies, i -> {
-            createdCellCount.incrementAndGet();
+            createdProxyCount.incrementAndGet();
             CellProxy hexCell = new CellProxy(this, i);
             if (hexCell.isPentagon()) {
                 pentagonCount.incrementAndGet();
@@ -105,7 +105,7 @@ public class Sphere {
             proxies[i].link();
             //}
         });
-        System.out.println("Finished linking the cell proxies. Populating.");
+        System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
 
         //for (int i = 0; i < proxies.length; i++) {
         //this.proxies[i].link();
@@ -113,6 +113,7 @@ public class Sphere {
         populateBarycenters();//For all the proxies, determine and set their barycenters
         System.out.println("Finished populating");
         createSharedVertexMap();
+        writeVertices();
         //System.out.println("Finished getting indexes");
         report();
         //outputKML();
@@ -127,9 +128,11 @@ public class Sphere {
 
     private void report() {
         if(!reportingPaused) {
-            report("Created", proxies.length, createdCellCount.get(), "CellProxies");
+            report("Created", proxies.length, createdProxyCount.get(), "CellProxies");
             report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
+            report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
             report("Created", sharedVertexMapLength, sharedVertexMapCount.get(), "Shared Vertices");
+            report("Saved", sharedVertexMapLength, savedVertexCount.get(), "Saved Vertices");
             report("Saved", proxies.length, savedCellCount.get(), "Cells");
             System.out.print("\n");
         }
@@ -407,39 +410,38 @@ public class Sphere {
                 "      </Polygon>\n";
     }
 
-    public Map<int[], Vertex> createSharedVertexMap() {
-        sharedVertexMapLength = 12 * (divisions) + 3;
+    public Map<String, Vertex> createSharedVertexMap() {
+        sharedVertexMapLength = divisions * divisions * 20;
         int[] ints = new int[6];
         System.out.println("Initializing shared vertex map ");
         reportingPaused = true;
-        try {
-            sharedVertexMap = (Map<int[], Vertex>) ChronicleMap
-                    .of(ints.getClass(), Vertex.class)
-                    .averageKeySize(6 * 32)
-                    .averageValue(new Vertex("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXX", 0, 0))
-                    .name("sharedVertexMap")
-                    .entries(sharedVertexMapLength)
-                    .createPersistedTo(new File("./sharedVertexMap_divisions_" + divisions + ".dat"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        sharedVertexMap = new HashMap<String, Vertex>();
 
         System.out.println("Initialized shared vertex map " + sharedVertexMapLength + " vertices.");
         reportingPaused = false;
         IntStream.range(0, proxies.length).parallel().forEach(f -> {
             //for(int f=0; f < proxies.length; f++) {
             List<Vertex> verticesAdded = proxies[f].populateSharedVertices(sharedVertexMap);
-            for (Vertex vertex : verticesAdded) {
-                databaseLoader.add(vertex);
-            }
             sharedVertexMapCount.addAndGet(verticesAdded.size());
             //    }
 
         });
-        databaseLoader.completeVertices();
+
 
         System.out.println("Finished creating shared vertex map");
         return sharedVertexMap;
+    }
+
+    private void writeVertices() {
+        sharedVertexMap.entrySet()
+                .parallelStream()
+                .forEach(entry -> {
+                            databaseLoader.add(entry.getValue());
+                            savedVertexCount.addAndGet(1);
+                        }
+                );
+
+        databaseLoader.completeVertices();
     }
 
 
@@ -448,8 +450,8 @@ public class Sphere {
         IntStream parallel = IntStream.range(0, n).parallel();
         //AreaFinder areaFinder = new AreaFinder();
         //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
-        //parallel.forEach(f -> {
-        for(int f=0; f < this.proxies.length; f++) {
+        parallel.forEach(f -> {
+        //for(int f=0; f < this.proxies.length; f++) {
             CellProxy proxy = this.proxies[f];
             Vertex[] vertices = proxy.getVertices(sharedVertexMap);
             //double areaAngle = areaFinder.getArea(vertices);
@@ -475,12 +477,15 @@ public class Sphere {
                 throw new RuntimeException("Can't add", e);
             }
             savedCellCount.incrementAndGet();
-        }
-        //});
+        //}
+        });
         databaseLoader.stop();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
 
+    public void incrementBarycenterCount() {
+        populatedBaryCenterCount.getAndIncrement();
+    }
 
 
     //public String toString() {
