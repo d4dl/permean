@@ -196,34 +196,8 @@ public class CellProxy implements Serializable {
         return isPentagon;
     }
 
-    /**
-     * Calculates and returns a cell's edge vertices. Latitudinal coordinates may be
-     * greater than π if the cell straddles the meridian across from 0.
-     */
-    public Vertex[] getVertices(Map<String, Vertex> sharedVertexMap) {
-        Vertex[] vertices = new Vertex[adjacentCells.length];
-
-        for(int i=0; i < adjacentCells.length; i++) {
-            int firstIndex = i;
-            int secondIndex = i + 1;
-            CellProxy firstAdjacent = adjacentCells[firstIndex];
-            CellProxy secondAdjacent = adjacentCells[secondIndex == adjacentCells.length ? 0 : secondIndex];
-            //The key of the vertex is the sorted index array of the three cells that share the
-            //vertex.  It should be calculated only once then placed in the map for retrieval by
-            //the other two cells that share the vertex.
-            int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
-            Arrays.sort(sharedVertexKey);
-            String uuid = createStableUUID(sharedVertexKey);
-            Vertex sharedVertex = sharedVertexMap.get(uuid);
-            vertices[i] = sharedVertex;
-        }
-
-        return vertices;
-    }
-
-
-    public String kmlString(int height, Map<String, Vertex> sharedVertexMap) {
-        Vertex[] vertices = getVertices(sharedVertexMap);
+    public String kmlString(int height) {
+        Vertex[] vertices = populateSharedVertices();
         StringBuffer buff = new StringBuffer();
         for (int i = 0; i < vertices.length; i++) {
             if(i > 0) {
@@ -260,9 +234,9 @@ public class CellProxy implements Serializable {
      * Each triangle's vertices are three neighboring cell's barycenters.
      * They are used to calculate the vertex.
      */
-    public List<Vertex> populateSharedVertices(Map<String, Vertex> sharedVertexMap) {
+    public Vertex[] populateSharedVertices() {
 
-        List<Vertex> addedVertices = new ArrayList();
+        Vertex[] addedVertices = new Vertex[adjacentCells.length];
         for (int i = 0; i < adjacentCells.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
             CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
@@ -272,22 +246,18 @@ public class CellProxy implements Serializable {
             int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
             Arrays.sort(sharedVertexKey);
             String stableUUID = createStableUUID(sharedVertexKey);
-            Vertex sharedVertex = sharedVertexMap.get(stableUUID);
-            if (sharedVertex == null) {
-                //These three positions represent the triangle whose vertices are the three barycenters
-                //that can be used to calculate the centroid of said triangle which is the vertex that
-                //the three cells share.
-                Position firstPos = parent.getCellProxies()[this.getIndex()].getBarycenter();
-                Position secondPos = parent.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
-                Position thirdPos = parent.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
-                Position centroid = firstPos.centroid(index, secondPos, thirdPos);
-                String uuid = stableUUID;
-                sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
-                sharedVertexMap.put(uuid, sharedVertex);
-                addedVertices.add(sharedVertex);
-            }
-
+            //These three positions represent the triangle whose vertices are the three barycenters
+            //that can be used to calculate the centroid of said triangle which is the vertex that
+            //the three cells share.
+            Position firstPos = parent.getCellProxies()[this.getIndex()].getBarycenter();
+            Position secondPos = parent.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
+            Position thirdPos = parent.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
+            Position centroid = firstPos.centroid(index, secondPos, thirdPos);
+            String uuid = stableUUID;
+            Vertex sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
+            addedVertices[i] = sharedVertex;
         }
+
         return addedVertices;
     }
 

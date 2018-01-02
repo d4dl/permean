@@ -44,15 +44,10 @@ public class Sphere {
 
 
     private int cellProxiesLength = -1;
-    private int sharedVertexMapLength = -1;
-
-    private AtomicInteger sharedVertexMapCount = new AtomicInteger(0);
-    private AtomicInteger savedVertexCount = new AtomicInteger(0);
+    private int vertexCount = -1;
 
     public static final double L = acos(sqrt(5) / 5); // the spherical arclength of the icosahedron's edges.
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
-
-    private Map<String, Vertex> sharedVertexMap = null;
 
     Timer timer = new Timer();
     double minLng = Integer.MAX_VALUE;
@@ -74,6 +69,7 @@ public class Sphere {
 
         //You want 100,000,000 cells so they will be around 2 square miles each.
         cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
+        vertexCount = divisions * divisions * 20;
         proxies = new CellProxy[cellProxiesLength];
         System.out.println("Initialized hex proxies to: " + proxies.length + " proxies.");
 
@@ -112,18 +108,19 @@ public class Sphere {
         //}
         populateBarycenters();//For all the proxies, determine and set their barycenters
         System.out.println("Finished populating");
-        createSharedVertexMap();
-        writeVertices();
         //System.out.println("Finished getting indexes");
         report();
-        //outputKML();
+        final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
+        if(outputKML) {
+            outputKML();
+        }
         if(databaseLoader != null) {
             saveCells();
         }
         timer.cancel();
         task.cancel();
         System.out.println("Min was: " + minArea + " max was " + maxArea);
-        System.out.println("Created and saved " + proxies.length + " proxies and " + savedVertexCount.get() + " vertices.");
+        System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
     }
 
     private void report() {
@@ -131,8 +128,6 @@ public class Sphere {
             report("Created", proxies.length, createdProxyCount.get(), "CellProxies");
             report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
             report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
-            report("Created", sharedVertexMapLength, sharedVertexMapCount.get(), "Shared Vertices");
-            report("Saved", sharedVertexMapLength, savedVertexCount.get(), "Saved Vertices");
             report("Saved", proxies.length, savedCellCount.get(), "Cells");
             System.out.print("\n");
         }
@@ -392,7 +387,7 @@ public class Sphere {
                 "        <tesselate>1</tesselate>\n" +
                 "        <altitudeMode>relativeToGround</altitudeMode>\n" +
                 "        <coordinates>\n" +
-                proxies[i].kmlString(2000, sharedVertexMap) + "\n" +
+                proxies[i].kmlString(2000) + "\n" +
                 "        </coordinates>\n" +
                 "      </LineString>\n";
     }
@@ -403,46 +398,14 @@ public class Sphere {
                 "        <tesselate>1</tesselate>\n" +
                 "        <altitudeMode>relativeToGround</altitudeMode>\n" +
                 "        <coordinates>\n" +
-                proxies[i].kmlString(2000, sharedVertexMap) + "\n" +
+                proxies[i].kmlString(2000) + "\n" +
                 "        </coordinates>\n" +
                 "      </LinearRing>\n" +
                 "      </outerBoundaryIs>\n" +
                 "      </Polygon>\n";
     }
 
-    public Map<String, Vertex> createSharedVertexMap() {
-        sharedVertexMapLength = divisions * divisions * 20;
-        int[] ints = new int[6];
-        System.out.println("Initializing shared vertex map ");
-        reportingPaused = true;
-        sharedVertexMap = new HashMap<String, Vertex>();
 
-        System.out.println("Initialized shared vertex map " + sharedVertexMapLength + " vertices.");
-        reportingPaused = false;
-        IntStream.range(0, proxies.length).parallel().forEach(f -> {
-            //for(int f=0; f < proxies.length; f++) {
-            List<Vertex> verticesAdded = proxies[f].populateSharedVertices(sharedVertexMap);
-            sharedVertexMapCount.addAndGet(verticesAdded.size());
-            //    }
-
-        });
-
-
-        System.out.println("Finished creating shared vertex map");
-        return sharedVertexMap;
-    }
-
-    private void writeVertices() {
-        sharedVertexMap.entrySet()
-                .parallelStream()
-                .forEach(entry -> {
-                            databaseLoader.add(entry.getValue());
-                            savedVertexCount.addAndGet(1);
-                        }
-                );
-
-        databaseLoader.completeVertices();
-    }
 
 
     public void saveCells() {
@@ -453,7 +416,7 @@ public class Sphere {
         parallel.forEach(f -> {
         //for(int f=0; f < this.proxies.length; f++) {
             CellProxy proxy = this.proxies[f];
-            Vertex[] vertices = proxy.getVertices(sharedVertexMap);
+            Vertex[] vertices = proxy.populateSharedVertices();
             //double areaAngle = areaFinder.getArea(vertices);
             //Cell cell = new Cell(UUID.randomUUID().toString(), Arrays.asList(), divisions, areaAngle);
             Cell cell = new Cell(UUID.randomUUID().toString(), Arrays.asList(vertices), divisions, 0);
@@ -470,15 +433,17 @@ public class Sphere {
                 maxLat = max(maxLat, vertices[i].getLatitude().doubleValue());
                 minLng = min(minLng, vertices[i].getLongitude().doubleValue());
                 maxLng = max(maxLng, vertices[i].getLongitude().doubleValue());
+                databaseLoader.add(vertices[i]);
             }
             try {
                 databaseLoader.add(cell);
+                savedCellCount.incrementAndGet();
             } catch (Exception e) {
                 throw new RuntimeException("Can't add", e);
             }
-            savedCellCount.incrementAndGet();
         //}
         });
+        databaseLoader.completeVertices();
         databaseLoader.stop();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }

@@ -41,6 +41,19 @@ public class DatabaseLoader implements CommandLineRunner {
     @Override
     public void run(String... strings) throws Exception {
         String parentSize = System.getProperty("sphere.divisions");
+        if(parentSize == null) {
+            System.out.println("Integer property sphere.divisions is required");
+        }
+        if (System.getProperty("offline") == null) {
+            System.out.println("Boolean property offline is required. If true no database updates will be made.");
+        }
+        if (System.getProperty("writeFiles") == null) {
+            System.out.println("Property writeFiles is required. If true sql update files will be produced.");
+        }
+        if (System.getProperty("outputKML") == null) {
+            System.out.println("Property outputKML is required.  If true a kml file will be created.");
+        }
+
         if(parentSize != null) {
             this.parentSize = Integer.parseInt(parentSize);
         }

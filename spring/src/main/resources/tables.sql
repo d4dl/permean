@@ -20,8 +20,6 @@ CREATE TABLE cell_vertices (
   cell_id     VARCHAR(255) NOT NULL,
   vertices_id VARCHAR(255) NOT NULL,
   sequence    INTEGER      NOT NULL,
-  FOREIGN KEY (cell_id) REFERENCES cell(id),
-  FOREIGN KEY (vertices_id) REFERENCES vertex(id),
   PRIMARY KEY (cell_id, sequence)
 );
 
