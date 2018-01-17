@@ -2,9 +2,7 @@ package com.d4dl.permean.data;
 
 import lombok.Data;
 
-import javax.persistence.Entity;
-import javax.persistence.ManyToMany;
-import javax.persistence.OrderColumn;
+import javax.persistence.*;
 import java.util.List;
 
 /**
@@ -12,15 +10,28 @@ import java.util.List;
  */
 @Data
 @Entity
-public class Cell extends BaseEntity {
+@NamedEntityGraph(name = "Cell.vertices",
+        attributeNodes = @NamedAttributeNode("vertices"))
+public class Cell extends BasicEntity {
 
+    private int parentSize;
+    private double area;
 
-    private final int parentSize;
-    @ManyToMany
+    @ManyToMany(fetch = FetchType.LAZY,
+                cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @JoinTable(name="cell_vertices",
+            joinColumns=
+            @JoinColumn(name="cell_id", referencedColumnName="id"),
+            inverseJoinColumns=
+            @JoinColumn(name="vertices_id", referencedColumnName="id")
+    )
     @OrderColumn(name="sequence")
     private List<Vertex> vertices;
 
-    double area;
+
+    public Cell() {
+
+    }
 
     public Cell(String id, List<Vertex> vertices, int parentSize, double area) {
         setId(id);

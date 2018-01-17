@@ -197,15 +197,15 @@ public class CellProxy implements Serializable {
     }
 
     public String kmlString(int height) {
-        Vertex[] vertices = populateSharedVertices();
+        List<Vertex> vertices = populateSharedVertices(false);
         StringBuffer buff = new StringBuffer();
-        for (int i = 0; i < vertices.length; i++) {
+        for (int i = 0; i < vertices.size(); i++) {
             if(i > 0) {
                 buff.append("\n");
             }
-            buff.append(vertices[i].kmlString(height));
+            buff.append(vertices.get(i).kmlString(height));
         }
-        buff.append(vertices[0].kmlString(height));//Make the first one also last.
+        buff.append(vertices.get(0).kmlString(height));//Make the first one also last.
         return buff.toString();
     }
 
@@ -233,10 +233,14 @@ public class CellProxy implements Serializable {
     /**
      * Each triangle's vertices are three neighboring cell's barycenters.
      * They are used to calculate the vertex.
+     * @return vertexes that should be saved. This relies on the principle that vertex indexes
+     * share vertices with two others.  if only the vertex with the smallest index of the three
+     * is returned, all vertices will be guaranteed to be returned only once.
+     * adding a vertex more than once (when another neighboring cell is processed) can be avoided.
      */
-    public Vertex[] populateSharedVertices() {
+    public List<Vertex> populateSharedVertices(boolean onlyReturnLowestIndexVertexes) {
 
-        Vertex[] addedVertices = new Vertex[adjacentCells.length];
+        List<Vertex> addedVertices = new ArrayList();
         for (int i = 0; i < adjacentCells.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
             CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
@@ -255,7 +259,9 @@ public class CellProxy implements Serializable {
             Position centroid = firstPos.centroid(index, secondPos, thirdPos);
             String uuid = stableUUID;
             Vertex sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
-            addedVertices[i] = sharedVertex;
+            if(!onlyReturnLowestIndexVertexes || (this.getIndex() < firstAdjacent.getIndex() && this.getIndex() < secondAdjacent.getIndex())) {
+                addedVertices.add(sharedVertex);
+            }
         }
 
         return addedVertices;

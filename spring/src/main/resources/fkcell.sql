@@ -6,7 +6,6 @@ ALTER TABLE cell_vertices ADD FOREIGN KEY (cell_id) REFERENCES cell(id);
 ALTER TABLE cell_vertices ADD FOREIGN KEY (vertices_id) REFERENCES vertex(id);
 
 ALTER TABLE vertex ADD CONSTRAINT UK5monbyfs20x2wt22vh0eproo3 UNIQUE (latitude, longitude);
-CREATE INDEX cell_idx ON cell_vertices (cell_id);
 
 CREATE INDEX lat_idx ON vertex (latitude);
 CREATE INDEX lnt_idx ON vertex (longitude);

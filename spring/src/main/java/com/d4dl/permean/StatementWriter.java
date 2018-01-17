@@ -29,7 +29,7 @@ public class StatementWriter {
     Connection joinConnection;
     Connection cellConnection;
     Connection vertexConnection;
-    public static int BUFFER_SIZE = 20000;
+    public static int BUFFER_SIZE = 2000;
     private int wroteCellCount;
     private int wroteVerticesCount;
     private boolean offlineMode = false;
@@ -97,10 +97,14 @@ public class StatementWriter {
                     }
                     cellBuffer.append("'").append(cell.getId()).append("'").append(",").append("" + cell.getArea()).append(",").append("" + parentSize).append(")");
                 }
+            try {
                 writeStatement(cellBuffer, cellConnection, cellWriter);
                 writeStatement(joinBuffer, joinConnection, joinWriter);
                 wroteCellCount += cells.size();
                 cells = new ArrayList();
+            } catch (Exception e) {
+                System.out.println("Caught an exception writing cells: " + e.getMessage() + " The query will be retried.");
+            }
         }
     }
 
@@ -119,9 +123,13 @@ public class StatementWriter {
                     needComma = true;
                     vertexBuffer.append(")");
                 }
-                writeStatement(vertexBuffer, vertexConnection, vertexWriter);
-                wroteVerticesCount += vertices.size();
-                vertices = new ArrayList();
+                try {
+                    writeStatement(vertexBuffer, vertexConnection, vertexWriter);
+                    wroteVerticesCount += vertices.size();
+                    vertices = new ArrayList();
+                } catch (Exception e) {
+                    System.out.println("Caught an exception writing vertexes: " + e.getMessage() + " The query will be retried.");
+                }
             }
         } catch (Exception e) {
             e.printStackTrace();

@@ -1,9 +1,6 @@
-package com.d4dl.permean;
+package com.d4dl.permean.data;
 
-import com.d4dl.permean.data.Cell;
-import com.d4dl.permean.data.CellRepository;
-import com.d4dl.permean.data.Vertex;
-import com.d4dl.permean.data.VertexRepository;
+import com.d4dl.permean.StatementWriter;
 import com.d4dl.permean.mesh.Sphere;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,6 +37,11 @@ public class DatabaseLoader implements CommandLineRunner {
 
     @Override
     public void run(String... strings) throws Exception {
+        System.out.println("Database loader is not creating Earth segments");
+        //segmentTheEarth();
+    }
+
+    private void segmentTheEarth() {
         String parentSize = System.getProperty("sphere.divisions");
         if(parentSize == null) {
             System.out.println("Integer property sphere.divisions is required");
