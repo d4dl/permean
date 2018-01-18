@@ -18,7 +18,7 @@ Ext.define('Permian.controller.MapController', {
     tree:null,
     mapBounds:null,
 
-    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='http://www.gridocracy.net/php/services/location/googlemapsproxy.php?{queryParams}'/></div>"),
+    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='http://www.gridocracy17.net/php/services/location/googlemapsproxy.php?{queryParams}'/></div>"),
 
     onLaunch:function () {
         this.callParent(arguments);
@@ -84,19 +84,18 @@ Ext.define('Permian.controller.MapController', {
             this.lastBoundsChanged = new Date();//These events fire really fast sometimes.
             //if(checkBox.selected) {
             // get some data, convert to JSON
-            var zoomTarget = 11;
+            var zoomTarget = 12;
             var currentZoom = map.getZoom();
             if (currentZoom > zoomTarget) {
                 Ext.fly("zoomSuggestion").setHTML("Hold down the <b>alt key</b> while clicking a region to choose it.  " +
                     "Click <b>'Add Selected Regions'</b> to assign yourself as a monitor to those regions.");
                 var bounds = map.getBounds();
                 var params = {
-                    action:'getCellsInBounds',
-                    top:bounds.getNorthEast().lat(),
-                    bottom:bounds.getSouthWest().lat(),
-                    west:bounds.getSouthWest().lng(),
-                    east:bounds.getNorthEast().lng(),
-                    sliceSize:7200
+                    bottom:Math.max(bounds.getNorthEast().lat(), bounds.getSouthWest().lat()),
+                    top:Math.min(bounds.getNorthEast().lat(), bounds.getSouthWest().lat()),
+                    east:Math.min(bounds.getSouthWest().lng(), bounds.getNorthEast().lng()),
+                    west:Math.max(bounds.getSouthWest().lng(), bounds.getNorthEast().lng()),
+                    projection:"vertices"
                 }
                 this.getGeoStoreStore().load({params: params});
             } else {
@@ -165,7 +164,7 @@ Ext.define('Permian.controller.MapController', {
             }
 
             Ext.Ajax.request({
-                url:"http://www.gridocracy.net/php/services/sliceService.php",
+                url:"http://www.gridocracy5.net/php/services/sliceService.php",
                 params:params,
                 success:function (response, ioargs) {
                     var data = Ext.JSON.decode(response.responseText);
@@ -208,7 +207,7 @@ Ext.define('Permian.controller.MapController', {
         } else {
             //This should be handled by the polygon store (which does not yet exist).
             Ext.Ajax.request({
-                url:"http://www.gridocracy.net/php/services/sliceService.php",
+                url:"http://www.gridocracy6.net/php/services/sliceService.php",
                 params:params,
                 success:function (response) {
                     var data = Ext.JSON.decode(response.responseText);

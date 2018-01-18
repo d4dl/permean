@@ -4,9 +4,10 @@ Ext.define("Permian.store.GeoStore", {
 
     proxy:{
         type:'ajax',
-        url:"http://www.gridocracy.net/php/services/sliceService.php",
+        url:"http://35.168.144.221:8080/cells/search/findByVerticesLatitudeBetweenAndVerticesLongitudeBetween",
         reader:{
-            type:'json'
+            type:'json',
+            root: '_embedded.cells'
         }
     },
     autoLoad:false,

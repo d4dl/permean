@@ -3,10 +3,10 @@ Ext.define("Permian.view.PolygonOverlay", {
 
     selected: null,
     polygon: null,
-    bounds: null,
-    rectOptions: null,
+    polyPath: null,
+    mapPolygonOptions: null,
     strokeColor: null,
-    rectangle: null,
+    mapPolygon: null,
 
     constructor: function(config) {
         var map = config.map;
@@ -15,16 +15,17 @@ Ext.define("Permian.view.PolygonOverlay", {
         var backerToken = config.currentBackerToken;
         this.callParent(arguments);
         //this.mapOverlay = new google.maps.GroundOverlay();
-        this.rectangle = new google.maps.Rectangle();
+        this.mapPolygon = new google.maps.Rectangle();
         this.selected = false;
         this.polygon = polygon;
 
+        var vertices = polygon.get('vertices');
         var latLngPolygon = [];
-        for(var i=0; i < polygon.length; i++) {
-            latLngPolygon.push(new google.maps.LatLng(polygon[i]*1));
+        for(var i=0; i < vertices.length; i++) {
+            latLngPolygon.push(new google.maps.LatLng(vertices[i].latitude, vertices[i].longitude));
         }
 
-        this.bounds = new google.maps.LatLngBounds(latLngPolygon);
+        this.polyPath = latLngPolygon;
         var fillColor = null;
         var thisHasABacker = !!this.polygon.get("backerToken");
         var thisIsTheBackers = backerToken &&
@@ -37,46 +38,46 @@ Ext.define("Permian.view.PolygonOverlay", {
         }
 
         this.strokeColor = "#0000FF";
-        this.rectOptions = {
+        this.mapPolygonOptions = {
             strokeColor: this.strokeColor,
             strokeOpacity: 0.8,
             strokeWeight: 1,
             fillColor: fillColor,
             fillOpacity: thisHasABacker ? .25 : 0,
             map: map,
-            bounds: this.bounds
+            paths: this.polyPath
         };
-        this.rectangle.setOptions(this.rectOptions);
+        this.mapPolygon.setOptions(this.mapPolygonOptions);
         var self = this;
 
         if(!thisHasABacker) {
-            google.maps.event.addListener(this.rectangle, 'click', function(event, options) {
+            google.maps.event.addListener(this.mapPolygon, 'click', function(event, options) {
                 if(Permian.controller.MapController.altKeyDown) {
                     self.selected = !self.selected;
                     onSelect(self, self.selected);
                     fillColor: "#00FF00",
-                        self.rectOptions.fillOpacity = self.selected ? .25 : 0;
-                    self.rectangle.setOptions(self.rectOptions);
+                        self.mapPolygonOptions.fillOpacity = self.selected ? .25 : 0;
+                    self.mapPolygon.setOptions(self.mapPolygonOptions);
                 }
             });
         }
     },
 
     destroy: function() {
-        google.maps.event.clearListeners(this.rectangle, 'click');
+        google.maps.event.clearListeners(this.mapPolygon, 'click');
         this.selected = null;
         this.polygon = null;
-        this.bounds = null;
-        this.rectOptions = null;
+        this.polyPath = null;
+        this.mapPolygonOptions = null;
         this.strokeColor = null;
-        this.rectangle.setMap(null);
-        this.rectangle = null;
+        this.mapPolygon.setMap(null);
+        this.mapPolygon = null;
 
     },
 
     getImageParams: function() {
-        var center = this.bounds.getCenter();
-        var span = this.bounds.toSpan();
+        var center = this.polyPath.getCenter();
+        var span = this.polyPath.toSpan();
         var params = {
             "center": center.lat() + "," + center.lng(),
             "span": span.lat() + "," + span.lng(),
@@ -90,8 +91,8 @@ Ext.define("Permian.view.PolygonOverlay", {
 
     setHighlighted: function(highlight) {
         this.fillColor = highlight ? "#FFFF00" : "#0000FF";
-        this.rectOptions.fillColor = this.fillColor;
-        //this.rectOptions.fillOpacity = 1;
-        this.rectangle.setOptions(this.rectOptions);
+        this.mapPolygonOptions.fillColor = this.fillColor;
+        //this.mapPolygonOptions.fillOpacity = 1;
+        this.mapPolygon.setOptions(this.mapPolygonOptions);
     }
 })
