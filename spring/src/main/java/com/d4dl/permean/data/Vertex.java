@@ -2,11 +2,9 @@ package com.d4dl.permean.data;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 
-import javax.persistence.Entity;
-import javax.persistence.ManyToMany;
-import javax.persistence.Table;
-import javax.persistence.UniqueConstraint;
+import javax.persistence.*;
 import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
@@ -20,6 +18,7 @@ import java.util.Set;
         @UniqueConstraint(columnNames = {"latitude", "longitude"})
 })
 @Entity
+@EqualsAndHashCode(exclude={"cells"})
 public class Vertex extends BasicEntity {
 
     public static final MathContext CONTEXT = new MathContext(10, RoundingMode.HALF_EVEN);
@@ -27,7 +26,7 @@ public class Vertex extends BasicEntity {
     BigDecimal latitude;
     BigDecimal longitude;
 
-    @ManyToMany(mappedBy = "vertices")
+    @ManyToMany(mappedBy = "vertices", fetch = FetchType.LAZY)
     @JsonIgnore
     Set<Cell> cells;
 

@@ -1,6 +1,8 @@
 package com.d4dl.permean.data;
 
 import lombok.Data;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 
 import javax.persistence.*;
 import java.util.List;
@@ -17,8 +19,9 @@ public class Cell extends BasicEntity {
     private int parentSize;
     private double area;
 
-    @ManyToMany(fetch = FetchType.LAZY,
+    @ManyToMany(fetch = FetchType.EAGER,
                 cascade = {CascadeType.PERSIST, CascadeType.MERGE})
+    @Fetch(FetchMode.SUBSELECT)
     @JoinTable(name="cell_vertices",
             joinColumns=
             @JoinColumn(name="cell_id", referencedColumnName="id"),
