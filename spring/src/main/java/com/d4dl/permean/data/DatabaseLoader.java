@@ -38,7 +38,7 @@ public class DatabaseLoader implements CommandLineRunner {
     @Override
     public void run(String... strings) throws Exception {
         System.out.println("Database loader is not creating Earth segments");
-        //segmentTheEarth();
+        segmentTheEarth();
     }
 
     private void segmentTheEarth() {

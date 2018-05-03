@@ -3,7 +3,7 @@ select distinct count(v.id) from cell c join cell_vertices cv on cv.cell_id = c.
 
 
 CREATE INDEX lat_idx ON vertex (latitude);
-CREATE INDEX lnt_idx ON vertex (longitude);
+CREATE INDEX lng_idx ON vertex (longitude);
 
 -- Just get some coordinates
 SELECT v1.latitude, v1.longitude

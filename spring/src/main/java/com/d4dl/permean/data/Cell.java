@@ -5,6 +5,7 @@ import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
 import javax.persistence.*;
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -18,6 +19,8 @@ public class Cell extends BasicEntity {
 
     private int parentSize;
     private double area;
+    BigDecimal centerLatitude;
+    BigDecimal centerLongitude;
 
     @ManyToMany(fetch = FetchType.EAGER,
                 cascade = {CascadeType.PERSIST, CascadeType.MERGE})
@@ -36,8 +39,10 @@ public class Cell extends BasicEntity {
 
     }
 
-    public Cell(String id, List<Vertex> vertices, int parentSize, double area) {
+    public Cell(String id, List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
         setId(id);
+        this.centerLatitude = centerLatitude;
+        this.centerLongitude = centerLongitude;
         this.vertices = vertices;
         this.area = area;
         this.parentSize = parentSize;

@@ -4,6 +4,7 @@ import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import org.apache.commons.io.FileUtils;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -36,6 +37,7 @@ public class Sphere {
     private CellProxy[] proxies;
     private boolean iterating;
     private boolean reportingPaused = false;
+    private NumberFormat formatter = NumberFormat.getInstance();
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
@@ -65,6 +67,10 @@ public class Sphere {
         this.databaseLoader = loader;
     }
 
+    public static void main(String[] args) {
+        new Sphere(Integer.parseInt(System.getProperty("sphere.divisions")), null).buildCells();
+    }
+
     public void buildCells() {
         percentInstance.setMaximumFractionDigits(2);
 
@@ -72,7 +78,7 @@ public class Sphere {
         cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
         proxies = new CellProxy[cellProxiesLength];
-        System.out.println("Initialized hex proxies to: " + proxies.length + " proxies.");
+        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.");
 
         //List<HexCell> cellList = Arrays.asList(proxies);
         TimerTask task = new TimerTask() {
@@ -116,7 +122,9 @@ public class Sphere {
             outputKML();
         }
         if(databaseLoader != null) {
+            saveVertices();
             saveCells();
+            databaseLoader.stop();
         }
         timer.cancel();
         task.cancel();
@@ -136,8 +144,8 @@ public class Sphere {
     }
 
     private void report(String verb, int total, int count, String type) {
-        System.out.print(" " + verb + " " + count +
-                " of " + total +
+        System.out.print(" " + verb + " " + formatter.format(count) +
+                " of " + formatter.format(total) +
                 " " + type + " (" + percentInstance.format((double) count / (double) total) +
                 ")");
     }
@@ -413,32 +421,11 @@ public class Sphere {
     public void saveCells() {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
-        //AreaFinder areaFinder = new AreaFinder();
-        //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
         parallel.forEach(f -> {
         //for(int f=0; f < this.proxies.length; f++) {
             CellProxy proxy = this.proxies[f];
-            List<Vertex> verticesToSave = proxy.populateSharedVertices(true);
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
-            //double areaAngle = areaFinder.getArea(vertices);
-            //Cell cell = new Cell(UUID.randomUUID().toString(), Arrays.asList(), divisions, areaAngle);
-            Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0);
-            //double areaSide = Math.sqrt(areaAngle);
-            //double areaSideRadians = areaSide * (180 / PI);
-            //double sideLengthMI = areaSideRadians * AVG_EARTH_RADIUS_MI;
-            //double areaMiles = sideLengthMI * sideLengthMI;
-            //System.out.println("Cell " + proxy.getName() + " area: " + areaMiles + " sq. mi.");
-            //proxy.setArea(areaMiles);
-            //minArea = min(minArea, areaAngle);
-            //maxArea = max(maxArea, areaAngle);
-            for (int i = 0; i < verticesToSave.size(); i++) {
-                minLat = min(minLat, verticesToSave.get(i).getLatitude().doubleValue());
-                maxLat = max(maxLat, verticesToSave.get(i).getLatitude().doubleValue());
-                minLng = min(minLng, verticesToSave.get(i).getLongitude().doubleValue());
-                maxLng = max(maxLng, verticesToSave.get(i).getLongitude().doubleValue());
-                databaseLoader.add(verticesToSave.get(i));
-                savedVertexCount.incrementAndGet();
-            }
+            Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
             try {
                 databaseLoader.add(cell);
                 savedCellCount.incrementAndGet();
@@ -447,10 +434,31 @@ public class Sphere {
             }
         //}
         });
-        databaseLoader.completeVertices();
-        databaseLoader.stop();
+        //databaseLoader.completeVertices();
         report();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
+    }
+
+    @NotNull
+    private IntStream saveVertices() {
+        int n = this.proxies.length;
+        IntStream parallel = IntStream.range(0, n).parallel();
+        //AreaFinder areaFinder = new AreaFinder();
+        //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
+        parallel.forEach(f -> {
+            CellProxy proxy = this.proxies[f];
+            List<Vertex> verticesToSave = proxy.populateSharedVertices(true);
+            for (int i = 0; i < verticesToSave.size(); i++) {
+                minLat = min(minLat, verticesToSave.get(i).getLatitude().doubleValue());
+                maxLat = max(maxLat, verticesToSave.get(i).getLatitude().doubleValue());
+                minLng = min(minLng, verticesToSave.get(i).getLongitude().doubleValue());
+                maxLng = max(maxLng, verticesToSave.get(i).getLongitude().doubleValue());
+                databaseLoader.add(verticesToSave.get(i));
+                savedVertexCount.incrementAndGet();
+            }
+        });
+        databaseLoader.completeVertices();
+        return parallel;
     }
 
     public void incrementBarycenterCount() {

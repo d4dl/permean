@@ -3,6 +3,7 @@ package com.d4dl.permean.data;
 import org.springframework.data.repository.PagingAndSortingRepository;
 import org.springframework.data.repository.query.Param;
 import org.springframework.data.rest.core.annotation.RepositoryRestResource;
+import org.springframework.web.bind.annotation.CrossOrigin;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -11,6 +12,7 @@ import java.util.List;
  * Created by joshuadeford on 6/6/17.
  */
 @RepositoryRestResource
+@CrossOrigin
 public interface CellRepository extends PagingAndSortingRepository <Cell, String> {
 
     /**
@@ -39,5 +41,5 @@ public interface CellRepository extends PagingAndSortingRepository <Cell, String
      * @return
      */
     //@EntityGraph(value = "Cell.vertices", type = EntityGraph.EntityGraphType.FETCH)
-    List<Cell> findByVerticesLatitudeBetweenAndVerticesLongitudeBetween(@Param("top") BigDecimal topLat, @Param("bottom") BigDecimal bottomLat, @Param("east") BigDecimal eastLng, @Param("west") BigDecimal westLng);
+    List<Cell> findByCenterLatitudeBetweenAndCenterLongitudeBetween(@Param("top") BigDecimal topLat, @Param("bottom") BigDecimal bottomLat, @Param("east") BigDecimal eastLng, @Param("west") BigDecimal westLng);
 }

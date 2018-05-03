@@ -1,6 +1,7 @@
 package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Vertex;
+import com.d4dl.permean.mesh.positiontree.LatComparable;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
@@ -10,17 +11,19 @@ import static java.lang.StrictMath.*;
 /**
  * Created by joshuadeford on 5/30/17.
  */
-public class Position implements Serializable {
+public class Position implements Serializable, LatComparable {
     public static final double π = PI;
     public static final double LAT_CONVERT = 90 * 2/π;
     public static final double LNG_CONVERT = 180/PI;
     private Vertex vertex;
     private int vertexIndex;
 
-    //Latitude (elevation angle) the angle in radians between the equatorial plane and the straight line that passes through that point and through (or close to) the center of the Earth
+    //Latitude (elevation angle) the angle in radians between the equatorial plane and the straight line that passes
+    //through that point and through (or close to) the center of the Earth
     private final double φ;
 
-    //Longitude (azimuthal angle) the angle in radians east or west of a reference meridian to another meridian that passes through that point
+    //Longitude (azimuthal angle) the angle in radians east or west of a reference meridian to another meridian that
+    //passes through that point
     private final double λ;
 
     public Position(double φ, double λ) {
@@ -49,7 +52,7 @@ public class Position implements Serializable {
     public double distance(Position other) {
         return 2 * asin(sqrt(
                 pow(sin((this.φ - other.φ) / 2), 2) +
-                        cos(this.φ) * cos(other.φ) * pow(sin((this.λ - other.λ) / 2), 2)
+                cos(this.φ) * cos(other.φ) * pow(sin((this.λ - other.λ) / 2), 2)
         ));
     }
 
@@ -162,5 +165,32 @@ public class Position implements Serializable {
 
     public void setVertex(Vertex vertex) {
         this.vertex = vertex;
+    }
+
+    /**
+     * Either compareTo using lat or lng if alt is true.
+     * @param o
+     * @return
+     */
+    @Override
+    public int compareLatTo(Object o) {
+        int result = 0;
+        Position other = (Position)o;
+        double comparee = this.φ;
+        double comparor = other.φ;
+        if (comparee > comparor) {
+            result = 1;
+        } else if (comparee < comparor) {
+            result = -1;
+        }
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "Position{" +
+                "φ=" + φ +
+                ", λ=" + λ +
+                "}\n";
     }
 }

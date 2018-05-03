@@ -5,10 +5,9 @@ import com.d4dl.permean.data.Vertex;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.IOException;
 import java.io.Writer;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.Statement;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,13 +22,14 @@ public class StatementWriter {
     private final boolean writeFiles;
     List<Cell> cells = new ArrayList();
     List<Vertex> vertices = new ArrayList();
-    public static final String CELL_INSERT = "INSERT INTO cell (id, area, parent_size) ";
-    public static final String JOIN_INSERT = "INSERT INTO cell_vertices (cell_id, vertices_id, sequence) ";
-    public static final String VERTEX_INSERT = "INSERT IGNORE INTO vertex (id, latitude, longitude) ";
-    Connection joinConnection;
+    public static final String CELL_INSERT = "INSERT INTO cell VALUES(?, ?, ?, ?, ?)";
+    public static final String JOIN_INSERT = "INSERT INTO cell_vertices VALUES(?, ?, ?)";
+    public static final String VERTEX_INSERT = "INSERT INTO vertex VALUES(?, ?, ?)";
+    //Connection joinConnection;
     Connection cellConnection;
-    Connection vertexConnection;
-    public static int BUFFER_SIZE = 2000;
+    //Connection vertexConnection;
+    public static int BATCH_SIZE = 1000;
+    //public static int BATCH_SIZE = 1;
     private int wroteCellCount;
     private int wroteVerticesCount;
     private boolean offlineMode = false;
@@ -47,30 +47,48 @@ public class StatementWriter {
         joinWriter = getFileWriter(threadName, "cell_vertices");
         cellWriter = getFileWriter(threadName, "cells");
         vertexWriter = getFileWriter(threadName, "vertices");
-        joinConnection = getConnection(threadName, "cell_vertices");
-        cellConnection = getConnection(threadName, "cells");
-        vertexConnection = getConnection(threadName, "vertices");
+        //joinConnection = getConnection(threadName, "cell_vertices");
+        cellConnection = getConnection();
+        //vertexConnection = getConnection(threadName, "vertices");
     }
 
     public void close() throws Exception {
         try {
-            joinWriter.close();
-            cellWriter.close();
-            vertexWriter.close();
-            joinConnection.close();
-            cellConnection.close();
-            vertexConnection.close();
-        } catch (Exception e) {
-            System.out.println("Closing a stream that's already closed.");
+            if(joinWriter != null) {
+                joinWriter.close();
+                cellWriter.close();
+                vertexWriter.close();
+            }
+        } catch (IOException e) {
+            System.out.println("Closing a writer that's already closed.");
         }
+        try {
+            //closeConnection(joinConnection);
+            closeConnection(cellConnection);
+            //closeConnection(vertexConnection);
+        } catch (Exception e) {
+            e.printStackTrace();
+            System.out.println("Closing a connection that's already closed.");
+        }
+    }
+
+    private void closeConnection(Connection conn) throws SQLException {
+        conn.commit();
+        conn.close();
     }
 
     public void completeVertices() {
         doVertices(true);
+        try {
+            cellConnection.commit();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     public void completeCells() throws Exception {
         doCells(true);
+        cellConnection.commit();
     }
 
     private void doVertices() {
@@ -82,27 +100,24 @@ public class StatementWriter {
     }
 
     private void doCells(boolean force) throws Exception {
-        if ((force && cells.size() > 0) || cells.size() > BUFFER_SIZE ) {
-                StringBuffer joinBuffer = new StringBuffer();
-                StringBuffer cellBuffer = new StringBuffer();
-                boolean needComma = false;
-                joinBuffer.append(JOIN_INSERT).append("VALUES");
-                cellBuffer.append(CELL_INSERT).append("VALUES\n(");
+        //For hexagons there will be 7 inserts for each cell
+        if (!offlineMode && ((force && cells.size() > 0) || cells.size() > BATCH_SIZE / 7 )) {
+            try (PreparedStatement cellStmt = cellConnection.prepareStatement(CELL_INSERT); PreparedStatement joinStmt = cellConnection.prepareStatement(JOIN_INSERT)) {
                 for (Cell cell : cells) {
-                    addVertexValues(joinBuffer, cell, needComma);
-                    if (needComma) {
-                        cellBuffer.append(",\n(");
-                    } else {
-                        needComma = true;
-                    }
-                    cellBuffer.append("'").append(cell.getId()).append("'").append(",").append("" + cell.getArea()).append(",").append("" + parentSize).append(")");
+                    addVertexValues(joinStmt, cell);
+                    cellStmt.setString(1, cell.getId());
+                    cellStmt.setDouble(2, cell.getArea());
+                    cellStmt.setInt(3, parentSize);
+                    cellStmt.setBigDecimal(4, cell.getCenterLatitude());
+                    cellStmt.setBigDecimal(5, cell.getCenterLongitude());
+                    cellStmt.addBatch();
                 }
-            try {
-                writeStatement(cellBuffer, cellConnection, cellWriter);
-                writeStatement(joinBuffer, joinConnection, joinWriter);
+                cellStmt.executeLargeBatch();
+                joinStmt.executeLargeBatch();
                 wroteCellCount += cells.size();
                 cells = new ArrayList();
             } catch (Exception e) {
+                e.printStackTrace();
                 System.out.println("Caught an exception writing cells: " + e.getMessage() + " The query will be retried.");
             }
         }
@@ -110,21 +125,16 @@ public class StatementWriter {
 
     private void doVertices(boolean force) {
         try {
-            if ((force && vertices.size() > 0) || vertices.size() > BUFFER_SIZE) {
-                StringBuffer vertexBuffer = new StringBuffer();
-                vertexBuffer.append(VERTEX_INSERT).append("VALUES\n(");
-                boolean needComma = false;
-                for (Vertex vertex : vertices) {
-                    if (needComma) {
-                        vertexBuffer.append(",\n(");
+            if (!offlineMode && ((force && vertices.size() > 0) || vertices.size() > BATCH_SIZE)) {
+                try (PreparedStatement stmt = cellConnection.prepareStatement(VERTEX_INSERT)) {
+                    for (Vertex vertex : vertices) {
+                        stmt.setString(1, vertex.getId());
+                        stmt.setBigDecimal(2, vertex.getLatitude());
+                        stmt.setBigDecimal(3, vertex.getLongitude());
+                        stmt.addBatch();
                     }
-                    //vertexBuffer.append("'").append(vertex.getId()).append("',").append("" + vertex.getIndex()).append(",").append("" + vertex.getLatitude()).append(",").append("" + vertex.getLongitude());
-                    vertexBuffer.append("'").append(vertex.getId()).append("' ,").append("" + vertex.getLatitude()).append(", ").append("" + vertex.getLongitude());
-                    needComma = true;
-                    vertexBuffer.append(")");
-                }
-                try {
-                    writeStatement(vertexBuffer, vertexConnection, vertexWriter);
+                    stmt.executeLargeBatch();
+                    cellConnection.commit();
                     wroteVerticesCount += vertices.size();
                     vertices = new ArrayList();
                 } catch (Exception e) {
@@ -136,32 +146,14 @@ public class StatementWriter {
         }
     }
 
-    private void writeStatement(StringBuffer queryBuffer, Connection conn, Writer writer) throws Exception {
-        String sql = queryBuffer.toString();
-        if (!offlineMode) {
-            try (Statement stmt = conn.createStatement()) {
-                //System.out.println(sql);
-                boolean result = stmt.execute(sql);
-            } catch (Exception e) {
-                e.printStackTrace();
-                throw new RuntimeException("Error executing query: " + e.getMessage() + "\nQuery:\n" + queryBuffer.substring(0, queryBuffer.length() > 2048 ? 2048 : queryBuffer.length() - 1));
-            }
-        }
-        if (writeFiles) {
-            writer.write(sql);
-            writer.write("\n");
-        }
-    }
-
-
-    private void addVertexValues(StringBuffer joinBuffer, Cell cell, boolean needComma) {
+    private void addVertexValues(PreparedStatement joinStmt, Cell cell) {
         try {
             for (int i = 0; i < cell.getVertices().size(); i++) {
-                if (i != 0 || needComma) {
-                    joinBuffer.append(",");
-                }
                 Vertex vertex = cell.getVertices().get(i);
-                joinBuffer.append("\n('").append(cell.getId()).append("','").append(vertex.getId()).append("',").append("" + i).append(")");
+                joinStmt.setString(1, cell.getId());
+                joinStmt.setString(2, vertex.getId());
+                joinStmt.setInt(3, i);
+                joinStmt.addBatch();
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -196,12 +188,23 @@ public class StatementWriter {
         }
     }
 
-    private Connection getConnection(String threadName, String typeName) {
+    private Connection getConnection() {
         if(!offlineMode) {
             try {
-                //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm";
-                String connectionURL = "jdbc:mysql://localhost:3306/plm";
+                //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm2";
+                String connectionURL = "jdbc:mysql://localhost:3306/plm2?dontCheckOnDuplicateKeyUpdateInSQL=true";
+                System.out.println("Getting connection for " + connectionURL);
                 Connection con = DriverManager.getConnection(connectionURL, "finley", "some_pass");
+                con.setAutoCommit(false);
+                try (Statement stmt = con.createStatement()) {
+                    //System.out.println(sql);
+                    stmt.execute("SET unique_checks=0");
+                    stmt.execute("SET foreign_key_checks=0");
+                    con.commit();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    throw new RuntimeException("Error getting connection");
+                }
                 //System.out.println("Created a connection to " + connectionURL);
                 return con;
             } catch (Exception e) {
