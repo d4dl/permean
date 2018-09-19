@@ -42,7 +42,7 @@ dojo.declare( "com.D4DL.yellowtree.controller.MapController", dijit._Widget,
                     sliceSize: 7200
                 }
                 xhr.get({
-                    url:"http://www.gridocracy.net/php/services/sliceService.php",
+                    url:"http://www.gridocracy4.net/php/services/sliceService.php",
                     handleAs:"json",
                     content: params,
                     load: function(data){

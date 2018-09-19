@@ -36,3 +36,9 @@ Stewards are masters of the land.
 TODO:
 Make sure that queries for polygons or jiyoba return the correct quadrangles for fields spanning the prime meridian, equator and poles.
 Make sure entailment method for geo quadrangles also wraps properly... make some unit tests.
+
+App:
+  Goals:
+    Get users to pay for stewardships
+    Help users understand mining strategy
+    Make sure users know

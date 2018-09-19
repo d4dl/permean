@@ -13,7 +13,7 @@ function getFBJiyoba($user) {
 }
 
 function render_profile_action($id, $num) {
-  return '<fb:profile-action url="http://www.gridocracy.net/php/services/facebook/?to=' . $id . '">'
+  return '<fb:profile-action url="http://www.gridocracy9.net/php/services/facebook/?to=' . $id . '">'
        .   '<fb:name uid="' . $id . '" firstnameonly="true" capitalize="true"/> '
        .   'has been given ' . $num . ' jiyoba.'
        . '</fb:profile-action>';
@@ -45,11 +45,11 @@ function do_give_jiyoba($from, $to) {
     // Send notification
     // Notice the use of reference '&'
     $result = & $facebook->api_client->notifications_send($to, ' created a Jiyoba for you.  ' .
-      '<a href="http://www.gridocracy.net/php/services/facebook/">See all your Jiyoba</a>.',2);
+      '<a href="http://www.gridocracy10.net/php/services/facebook/">See all your Jiyoba</a>.',2);
 
     // Publish feed story
     $feed_title = '<fb:userlink uid="'.$from.'" shownetwork="false"/> created a Jiyoba for <fb:name uid="'.$to.'"/>.';
-    $feed_body = 'Check out <a href="http://www.gridocracy.net/php/services/facebook/?to='.$to.'">' .
+    $feed_body = 'Check out <a href="http://www.gridocracy11.net/php/services/facebook/?to='.$to.'">' .
                  '<fb:name uid="'.$to.'" firstnameonly="true" possessive="true"/> Jiyoba</a>.';
     $facebook->api_client->feed_publishUserAction($feed_title, $feed_body);
 
@@ -64,7 +64,7 @@ function do_give_jiyoba($from, $to) {
 }
 
 function render_give_link($id) {
-  return '<a href="http://www.gridocracy.net/php/services/facebook/?to=' . $id . '">'
+  return '<a href="http://www.gridocracy12.net/php/services/facebook/?to=' . $id . '">'
        .   'Create a Jiyoba for <fb:name uid="' . $id . '" firstnameonly="true"/>'
        . '</a>';
 }

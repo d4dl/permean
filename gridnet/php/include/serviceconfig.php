@@ -17,8 +17,8 @@ define("DB_WRITE_PASS","cBv7C8SH");
 
 define("DB_READ_USER", "jdeford_27_r");
 define("DB_READ_PASS", "6ud3c9cC");
-$URL_ROOT= "http://www.gridocracy.net/php/facebook";
-$ROOT_LOCATION= "http://www.gridocracy.net/";
+$URL_ROOT= "http://www.gridocracy13.net/php/facebook";
+$ROOT_LOCATION= "http://www.gridocracy14.net/";
 
 #The public key for the facebook jiyoba watcher app
 $FB_SATCH_PK="952cb5dceeb9b25c0257a0105dae7dee";

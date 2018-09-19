@@ -874,8 +874,7 @@ function createBallSpecifications($dbLink, $result)
  * that are known never to be greater the 45º tall or 90º wide.
  * 
  */ 
-function createGeoPolygons($dbLink, $result)
-{
+function createGeoPolygons($dbLink, $result) {
     $polygons = array();
     $numRows = mysqli_num_rows($result);
     $geometry = array();

@@ -38,7 +38,8 @@ if($_REQUEST['action'] == "getAllPoints") {
     $output = json_encode($foundPoints);
 }
 
-//There are 28,285,515 fields
+//There are around 28,285,515 fields
+//That's 1681 divisions on a sphere generator
 if($_REQUEST['action'] == "countCalculatedFields") {
     $fieldHandler = new FieldHandler();
     $count = $fieldHandler->countCalculatedFields(90, 0, 0, 180, $_REQUEST['sliceSize']);
@@ -109,6 +110,6 @@ INSERT INTO kickstarter_backer_token (backer_token, geo_quadrangle_allotment, ge
 
 */
 
-//<img src="http://www.gridocracy.net/php/services/location/googlemapsproxy.php"/>
+//<img src="http://www.gridocracy8.net/php/services/location/googlemapsproxy.php"/>
 ?>
 

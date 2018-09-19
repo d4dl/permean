@@ -1,1 +1,1 @@
-<img src="http://www.gridocracy.net/php/services/location/googlemapsproxy.php?center=50.460297917352%2C-125.40027137042&span=0.032502607354004454%2C0.054274084120038424&maptype=normal&sensor=false&zoom=10&size=32x32"/>
+<img src="http://www.gridocracy15.net/php/services/location/googlemapsproxy.php?center=50.460297917352%2C-125.40027137042&span=0.032502607354004454%2C0.054274084120038424&maptype=normal&sensor=false&zoom=10&size=32x32"/>
