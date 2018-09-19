@@ -1,12 +1,13 @@
 Ext.define("Permian.store.GeoStore", {
     extend:'Ext.data.Store',
-    model: 'Permian.model.Quadrangle',
+    model: 'Permian.model.Polygon',
 
     proxy:{
         type:'ajax',
-        url:"http://www.gridocracy.net/php/services/sliceService.php",
+        url:"http://35.168.144.221:8080/cells/search/findByVerticesLatitudeBetweenAndVerticesLongitudeBetween",
         reader:{
-            type:'json'
+            type:'json',
+            root: '_embedded.cells'
         }
     },
     autoLoad:false,
@@ -15,9 +16,9 @@ Ext.define("Permian.store.GeoStore", {
         this.callParent(arguments);
         this.on({
             load: function(store, records, successful, eOpts) {
-                Permian.getApplication().fireEvent('quadranglesReceived');
+                Permian.getApplication().fireEvent('polygonsReceived');
             }
         });
     }
 
-});
+})

@@ -4,7 +4,7 @@ Ext.define('Permian.Application', {
     extend: 'Ext.app.Application',
 
     views: [
-        "QuadrangleOverlay",
+        "PolygonOverlay",
         "MapControls"
     ],
 

@@ -1,0 +1,15 @@
+#Action application/x-pair-sphp5 /cgi-sys/php-cgiwrap/jdeford/php5.cgi
+#AddType application/x-pair-sphp5 .php
+#php_value auto_append_file  "/usr/www/users/jdeford/gridnet/php/include/location.inc" 
+php_value include_path /usr/www/users/jdeford/gridnet/php/include/
+
+AuthUserFile /usr/home/jdeford/.htpasswd
+AuthName     "Protected"
+AuthType     Basic
+DirectoryIndex login.php index.php index.html
+<Limit GET POST PUT>
+  require valid-user
+</Limit>
+<Files .htpasswd>
+  deny from all
+</Files>

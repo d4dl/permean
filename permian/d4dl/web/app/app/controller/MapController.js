@@ -5,10 +5,10 @@ Ext.define('Permian.controller.MapController', {
     ],
     backerToken: null,
     allotmentCount: null,
-    allQuadrangle:null,
-    selectedQuadrangleOverlays:null,
-    highlightedQuadrangleOverlay:null,
-    addedQuadrangleOverlays:null,
+    allPolygon:null,
+    selectedPolygonOverlays:null,
+    highlightedPolygonOverlay:null,
+    addedPolygonOverlays:null,
     lastBoundsChanged:null,
     refs: [{
         ref: 'map',
@@ -18,7 +18,7 @@ Ext.define('Permian.controller.MapController', {
     tree:null,
     mapBounds:null,
 
-    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='http://www.gridocracy.net/php/services/location/googlemapsproxy.php?{queryParams}'/></div>"),
+    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='http://www.gridocracy17.net/php/services/location/googlemapsproxy.php?{queryParams}'/></div>"),
 
     onLaunch:function () {
         this.callParent(arguments);
@@ -44,9 +44,9 @@ Ext.define('Permian.controller.MapController', {
 
         this.lastBoundsChanged = new Date();
         //These also should be in a store.
-        this.allQuadrangleOverlays = {};
-        this.selectedQuadrangleOverlays = {};
-        this.addedQuadrangleOverlays = {};
+        this.allPolygonOverlays = {};
+        this.selectedPolygonOverlays = {};
+        this.addedPolygonOverlays = {};
 
         Ext.ComponentQuery.query('#addFieldsButton')[0].on({click: this.addSelectedFields, scope: this});
         Ext.ComponentQuery.query('#submitTokenButton')[0].on({click: this.submitToken, scope: this});
@@ -64,7 +64,7 @@ Ext.define('Permian.controller.MapController', {
         }
 
         this.getGeoStoreStore().on({
-            load: this.quadranglesReceived,
+            load: this.polygonsReceived,
             scope: this
         });
         this.getApplication().on({
@@ -84,19 +84,18 @@ Ext.define('Permian.controller.MapController', {
             this.lastBoundsChanged = new Date();//These events fire really fast sometimes.
             //if(checkBox.selected) {
             // get some data, convert to JSON
-            var zoomTarget = 11;
+            var zoomTarget = 12;
             var currentZoom = map.getZoom();
             if (currentZoom > zoomTarget) {
                 Ext.fly("zoomSuggestion").setHTML("Hold down the <b>alt key</b> while clicking a region to choose it.  " +
                     "Click <b>'Add Selected Regions'</b> to assign yourself as a monitor to those regions.");
                 var bounds = map.getBounds();
                 var params = {
-                    action:'calculateFields',
-                    top:bounds.getNorthEast().lat(),
-                    bottom:bounds.getSouthWest().lat(),
-                    west:bounds.getSouthWest().lng(),
-                    east:bounds.getNorthEast().lng(),
-                    sliceSize:7200
+                    bottom:Math.max(bounds.getNorthEast().lat(), bounds.getSouthWest().lat()),
+                    top:Math.min(bounds.getNorthEast().lat(), bounds.getSouthWest().lat()),
+                    east:Math.min(bounds.getSouthWest().lng(), bounds.getNorthEast().lng()),
+                    west:Math.max(bounds.getSouthWest().lng(), bounds.getNorthEast().lng()),
+                    projection:"vertices"
                 }
                 this.getGeoStoreStore().load({params: params});
             } else {
@@ -165,7 +164,7 @@ Ext.define('Permian.controller.MapController', {
             }
 
             Ext.Ajax.request({
-                url:"http://www.gridocracy.net/php/services/sliceService.php",
+                url:"http://www.gridocracy5.net/php/services/sliceService.php",
                 params:params,
                 success:function (response, ioargs) {
                     var data = Ext.JSON.decode(response.responseText);
@@ -174,11 +173,11 @@ Ext.define('Permian.controller.MapController', {
                         self.updateUIForAllotment(data);
                     }
                     if (data.slices) {
-                        self.quadranglesReceived(data.slices);
+                        self.polygonsReceived(data.slices);
 
                         for (var i = 0; i < data.slices.length; i++) {
                             var slice = data.slices[i];
-                            self.fieldSelected(self.allQuadrangleOverlays[slice.uid], true)
+                            self.fieldSelected(self.allPolygonOverlays[slice.uid], true)
                         }
                         self.addSelectedFields(true);
                     }
@@ -206,9 +205,9 @@ Ext.define('Permian.controller.MapController', {
             this.showDialog("You may choose to be the monitor for up to " + self.allotmentCount +
                 " regions but " + phrase + ".  Choose some more regions and click the <b>Add Selected Regions</b> button.  Then try to reconfirm.");
         } else {
-            //This should be handled by the quadrangle store (which does not yet exist).
+            //This should be handled by the polygon store (which does not yet exist).
             Ext.Ajax.request({
-                url:"http://www.gridocracy.net/php/services/sliceService.php",
+                url:"http://www.gridocracy6.net/php/services/sliceService.php",
                 params:params,
                 success:function (response) {
                     var data = Ext.JSON.decode(response.responseText);
@@ -217,7 +216,7 @@ Ext.define('Permian.controller.MapController', {
                         self.updateUIForAllotment(data);
                     }
                     if (data.slices) {
-                        self.quadranglesReceived(data.slices);
+                        self.polygonsReceived(data.slices);
                     }
                 },
                 failure:function (error) {
@@ -230,10 +229,10 @@ Ext.define('Permian.controller.MapController', {
 
     getAddedSlices:function () {
         var slices = [];
-        for (var key in this.addedQuadrangleOverlays) {
-            var quadrangleOverlay = this.addedQuadrangleOverlays[key];
-            if (!quadrangleOverlay.quadrangle.backerToken) {
-                slices.push(quadrangleOverlay.quadrangle.raw);
+        for (var key in this.addedPolygonOverlays) {
+            var polygonOverlay = this.addedPolygonOverlays[key];
+            if (!polygonOverlay.polygon.backerToken) {
+                slices.push(polygonOverlay.polygon.raw);
             }
         }
         return slices;
@@ -246,17 +245,17 @@ Ext.define('Permian.controller.MapController', {
         var sliceContainer = Ext.ComponentQuery.query("#sliceContainer")[0];
         Ext.select(".sliceTile").each(function(tile){tile.destroy()});
         //sliceContainer.removeChildEls(function(){return true;});
-        this.addedQuadrangleOverlays = {};
+        this.addedPolygonOverlays = {};
         var self = this;
-        for (var key in this.selectedQuadrangleOverlays) {
-            var quadrangleOverlay = this.selectedQuadrangleOverlays[key];
-            this.addedQuadrangleOverlays[key] = quadrangleOverlay;
+        for (var key in this.selectedPolygonOverlays) {
+            var polygonOverlay = this.selectedPolygonOverlays[key];
+            this.addedPolygonOverlays[key] = polygonOverlay;
             selectionsExist = true;
-            var queryParams = Ext.Object.toQueryString(quadrangleOverlay.getImageParams());
+            var queryParams = Ext.Object.toQueryString(polygonOverlay.getImageParams());
             var newTile = self.tileTemplate.append(sliceContainer.getEl(), {queryParams: queryParams}, true);
             newTile.on("dblclick", function(event, element, options) {
-                self.selectSlice(options.quadrangleOverlay)
-            }, this, {quadrangleOverlay: quadrangleOverlay});
+                self.selectSlice(options.polygonOverlay)
+            }, this, {polygonOverlay: polygonOverlay});
         }
         if (!selectionsExist && skipSelectionCheck !== true) {
             self.showDialog("You haven't selected any regions.  Double click to zoom in until you see the regions outlined.  Hold down the ALT key and click to select a region.");
@@ -269,9 +268,9 @@ Ext.define('Permian.controller.MapController', {
         }
     },
 
-    selectSlice:function (quadrangleOverlay) {
-        this.map.fitBounds(quadrangleOverlay.bounds);
-        this.highlightedQuadrangleOverlay = quadrangleOverlay;
+    selectSlice:function (polygonOverlay) {
+        this.map.fitBounds(polygonOverlay.bounds);
+        this.highlightedPolygonOverlay = polygonOverlay;
     },
 
     showDialog:function (message) {
@@ -285,40 +284,40 @@ Ext.define('Permian.controller.MapController', {
         }
     },
 
-    fieldSelected:function (quadrangleOverlay, select) {
+    fieldSelected:function (polygonOverlay, select) {
         if (select) {
-            this.selectedQuadrangleOverlays[quadrangleOverlay.quadrangle.get('uid')] = quadrangleOverlay;
+            this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')] = polygonOverlay;
         } else {
-            delete this.selectedQuadrangleOverlays[quadrangleOverlay.quadrangle.get('uid')];
+            delete this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')];
         }
     },
 
     /**
-     * Fires a notification with all new quadrangles that were updated.  The new ones
-     * are sent as a payload. If all of the quadrangles are needed use getQuadrangleOverlays
+     * Fires a notification with all new polygons that were updated.  The new ones
+     * are sent as a payload. If all of the polygons are needed use getPolygonOverlays
      */
-    quadranglesReceived:function () {
+    polygonsReceived:function () {
         var self = this;
-        this.getGeoStoreStore().each(function(quadrangle, i, totalCount)
+        this.getGeoStoreStore().each(function(polygon, i, totalCount)
         {
-            //Don't add quadrangles that already have been added.
-            var uid = quadrangle.get('uid');
-            var quadrangleOverlay = this.allQuadrangleOverlays[uid];
-            if (quadrangleOverlay && quadrangle.backerToken) {//If one comes through with a backerToken get rid of any current ones.
-                quadrangleOverlay.DESTROYED = true;
-                delete this.selectedQuadrangleOverlays[quadrangleOverlay.quadrangle.get('uid')];
-                quadrangleOverlay.destroy();
-                quadrangleOverlay = null;
+            //Don't add polygons that already have been added.
+            var uid = polygon.get('uid');
+            var polygonOverlay = this.allPolygonOverlays[uid];
+            if (polygonOverlay && polygon.backerToken) {//If one comes through with a backerToken get rid of any current ones.
+                polygonOverlay.DESTROYED = true;
+                delete this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')];
+                polygonOverlay.destroy();
+                polygonOverlay = null;
             }
-            if (!quadrangleOverlay) {
-                var quadrangle = quadrangle;
-                quadrangleOverlay = Ext.create("Permian.view.QuadrangleOverlay",{
-                    quadrangle: quadrangle,
+            if (!polygonOverlay) {
+                var polygon = polygon;
+                polygonOverlay = Ext.create("Permian.view.PolygonOverlay",{
+                    polygon: polygon,
                     map: self.map,
                     onselect: Ext.bind(this.fieldSelected, this),
                     currentBackerToken: self.backerToken
                 });
-                this.allQuadrangleOverlays[uid] = quadrangleOverlay;
+                this.allPolygonOverlays[uid] = polygonOverlay;
             }
         }, this)
 
