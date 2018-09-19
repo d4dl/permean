@@ -1,3 +1,5 @@
+Permian.baseUrl = "http://35.168.144.221:8080/";
+
 Ext.define('Permian.controller.MapController', {
     extend:'Ext.app.Controller',
     stores: [
@@ -18,7 +20,7 @@ Ext.define('Permian.controller.MapController', {
     tree:null,
     mapBounds:null,
 
-    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='http://www.gridocracy17.net/php/services/location/googlemapsproxy.php?{queryParams}'/></div>"),
+    tileTemplate: new Ext.Template("<div style='font-size: 0px;' class='sliceTile'><img style='font-size: 0px; height: 64px; width: 64px;'src='{imageUrl}?{queryParams}'/></div>"),
 
     onLaunch:function () {
         this.callParent(arguments);
@@ -55,12 +57,14 @@ Ext.define('Permian.controller.MapController', {
 
         //Ext.ComponentQuery.query("#commitInstructions")[0].fadeOut({duration:1});
        // Ext.fly(commitSlicesButton).fadeOut({duration:1});
-        var self = this;
+        var self = this;;
         window.onkeydown = function (evt) {
-            self.onKeyDown(evt);
+            Permian.controller.MapController.altKeyDown = false;
+            //self.onKeyDown(evt);
         }
         window.onkeyup = function (evt) {
-            self.onKeyUp(evt);
+            //self.onKeyUp(evt);
+            Permian.controller.MapController.altKeyDown = event.altKey;
         }
 
         this.getGeoStoreStore().on({
@@ -71,12 +75,6 @@ Ext.define('Permian.controller.MapController', {
             submitToken: this.submitToken,
             scope: this
         })
-    },
-    onKeyUp:function (event) {
-        Permian.controller.MapController.altKeyDown = false;
-    },
-    onKeyDown:function (event) {
-        Permian.controller.MapController.altKeyDown = event.altKey;
     },
 
     boundsChanged:function (map) {
@@ -177,7 +175,7 @@ Ext.define('Permian.controller.MapController', {
 
                         for (var i = 0; i < data.slices.length; i++) {
                             var slice = data.slices[i];
-                            self.fieldSelected(self.allPolygonOverlays[slice.uid], true)
+                            self.fieldSelected(self.allPolygonOverlays[slice.id], true)
                         }
                         self.addSelectedFields(true);
                     }
@@ -252,7 +250,8 @@ Ext.define('Permian.controller.MapController', {
             this.addedPolygonOverlays[key] = polygonOverlay;
             selectionsExist = true;
             var queryParams = Ext.Object.toQueryString(polygonOverlay.getImageParams());
-            var newTile = self.tileTemplate.append(sliceContainer.getEl(), {queryParams: queryParams}, true);
+            var imageUrl = "https://maps.googleapis.com/maps/api/staticmap";
+            var newTile = self.tileTemplate.append(sliceContainer.getEl(), {queryParams: queryParams, imageUrl: imageUrl}, true);
             newTile.on("dblclick", function(event, element, options) {
                 self.selectSlice(options.polygonOverlay)
             }, this, {polygonOverlay: polygonOverlay});
@@ -286,9 +285,9 @@ Ext.define('Permian.controller.MapController', {
 
     fieldSelected:function (polygonOverlay, select) {
         if (select) {
-            this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')] = polygonOverlay;
+            this.selectedPolygonOverlays[polygonOverlay.polygon.getId()] = polygonOverlay;
         } else {
-            delete this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')];
+            delete this.selectedPolygonOverlays[polygonOverlay.polygon.getId()];
         }
     },
 
@@ -301,11 +300,11 @@ Ext.define('Permian.controller.MapController', {
         this.getGeoStoreStore().each(function(polygon, i, totalCount)
         {
             //Don't add polygons that already have been added.
-            var uid = polygon.get('uid');
-            var polygonOverlay = this.allPolygonOverlays[uid];
+            var id = polygon.getId();
+            var polygonOverlay = this.allPolygonOverlays[id];
             if (polygonOverlay && polygon.backerToken) {//If one comes through with a backerToken get rid of any current ones.
                 polygonOverlay.DESTROYED = true;
-                delete this.selectedPolygonOverlays[polygonOverlay.polygon.get('uid')];
+                delete this.selectedPolygonOverlays[polygonOverlay.polygon.getId()];
                 polygonOverlay.destroy();
                 polygonOverlay = null;
             }
@@ -317,7 +316,7 @@ Ext.define('Permian.controller.MapController', {
                     onselect: Ext.bind(this.fieldSelected, this),
                     currentBackerToken: self.backerToken
                 });
-                this.allPolygonOverlays[uid] = polygonOverlay;
+                this.allPolygonOverlays[id] = polygonOverlay;
             }
         }, this)
 

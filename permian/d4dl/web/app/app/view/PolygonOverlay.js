@@ -15,21 +15,21 @@ Ext.define("Permian.view.PolygonOverlay", {
         var backerToken = config.currentBackerToken;
         this.callParent(arguments);
         //this.mapOverlay = new google.maps.GroundOverlay();
-        this.mapPolygon = new google.maps.Rectangle();
+        this.mapPolygon = new google.maps.Polygon();
         this.selected = false;
         this.polygon = polygon;
 
         var vertices = polygon.get('vertices');
         var latLngPolygon = [];
         for(var i=0; i < vertices.length; i++) {
-            latLngPolygon.push(new google.maps.LatLng(vertices[i].latitude, vertices[i].longitude));
+            var position = {lat: vertices[i].latitude, lng: vertices[i].longitude};
+            latLngPolygon.push(position);
         }
 
         this.polyPath = latLngPolygon;
         var fillColor = null;
         var thisHasABacker = !!this.polygon.get("backerToken");
-        var thisIsTheBackers = backerToken &&
-            this.polygon.set("backerToken", backerToken);
+        var thisIsTheBackers = backerToken && this.polygon.set("backerToken", backerToken);
         if(thisIsTheBackers) {
             fillColor = "#0000FF";//This polygon is the backer's
         } else {
@@ -44,15 +44,16 @@ Ext.define("Permian.view.PolygonOverlay", {
             strokeWeight: 1,
             fillColor: fillColor,
             fillOpacity: thisHasABacker ? .25 : 0,
-            map: map,
             paths: this.polyPath
         };
         this.mapPolygon.setOptions(this.mapPolygonOptions);
         var self = this;
+        //https://maps.googleapis.com/maps/api/staticmap?center=Brooklyn+Bridge,New+York,NY&zoom=13&size=600x300&maptype=roadmap&markers=color:blue%7Clabel:S%7C40.702147,-74.015794&markers=color:green%7Clabel:G%7C40.711614,-74.012318&markers=color:red%7Clabel:C%7C40.718217,-73.998284&key=AIzaSyDCP645m-UOXC0tv4nKfp4PxqiATSQfpwY
+        //Static maps AIzaSyDCP645m-UOXC0tv4nKfp4PxqiATSQfpwY
 
         if(!thisHasABacker) {
             google.maps.event.addListener(this.mapPolygon, 'click', function(event, options) {
-                if(Permian.controller.MapController.altKeyDown) {
+                if(event.xa.altKey) {
                     self.selected = !self.selected;
                     onSelect(self, self.selected);
                     fillColor: "#00FF00",
@@ -61,6 +62,7 @@ Ext.define("Permian.view.PolygonOverlay", {
                 }
             });
         }
+        this.mapPolygon.setMap(map);
     },
 
     destroy: function() {
@@ -76,15 +78,21 @@ Ext.define("Permian.view.PolygonOverlay", {
     },
 
     getImageParams: function() {
-        var center = this.polyPath.getCenter();
-        var span = this.polyPath.toSpan();
+        var path="color:0xff0000|weight:2|";
+        var vertices = this.polygon.get('vertices');
+        for(var i=0; i <= vertices.length; i++) {
+            var idx = i == vertices.length ? 0 : i;
+            var lat = vertices[idx].latitude;
+            var lng = vertices[idx].longitude;
+            path += lat + "," + lng + (i == vertices.length ? "" : "|")
+        }
+
         var params = {
-            "center": center.lat() + "," + center.lng(),
-            "span": span.lat() + "," + span.lng(),
-            "maptype": "hybrid",
-            "sensor": "false",
-            "zoom": "11",
-            "size": "64x64"};
+            key: "AIzaSyDCP645m-UOXC0tv4nKfp4PxqiATSQfpwY",
+            maptype: "roadmap",
+            sensor: "false",
+            path: path,
+            size: "80x80"};
         return params;
     },
 

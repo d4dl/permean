@@ -3,7 +3,6 @@ Ext.define('Permian.model.Polygon', {
 
     fields: [
         { name: 'id', type: 'auto' },
-        { name: 'uid', type: 'auto' },
         { name: 'backerToken', type: 'auto' },
         { name: 'vertices', type: 'auto' }
 
