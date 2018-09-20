@@ -163,11 +163,11 @@ public class Sphere {
 
         try {
             File fileOut = new File(fileName);
-            OutputStream out = new ZipOutputStream(new FileOutputStream(fileOut));
-            // OutputStream out = new FileOutputStream(fileOut);
+            //OutputStream out = new ZipOutputStream(new FileOutputStream(fileOut));
+            OutputStream out = new FileOutputStream(fileOut);
             JsonFactory jfactory = new JsonFactory();
             generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
-            generator.useDefaultPrettyPrinter();
+            // generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
             generator.writeObjectFieldStart(objectName);
         } catch (IOException e) {
