@@ -3,6 +3,12 @@ package com.d4dl.permean.mesh;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
+import com.fasterxml.jackson.core.JsonEncoding;
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -121,15 +127,76 @@ public class Sphere {
         if(outputKML) {
             outputKML();
         }
+        Map<String, Vertex> allVertices = new HashMap();
+        Map<String, Cell> cells = new HashMap();
         if(databaseLoader != null) {
             saveVertices();
             saveCells();
             databaseLoader.stop();
         }
+        collect(allVertices, cells);
+        outputJSON(allVertices, cells);
         timer.cancel();
         task.cancel();
         System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
+    }
+
+    private void outputJSON(Map<String, Vertex> allVertices, Map<String, Cell> cells) {
+        JsonGenerator generator = null;
+        try {
+            String fileName = "mesh.json";
+            File outputFile = new File(fileName);
+            // OutputStream stream = new ZipOutputStream(new FileOutputStream(outputFile));
+            OutputStream stream = new FileOutputStream(outputFile);
+            JsonFactory jfactory = new JsonFactory();
+
+            generator = jfactory.createGenerator(stream, JsonEncoding.UTF8);
+            generator.useDefaultPrettyPrinter();
+            generator.writeStartObject();
+            generator.writeObjectFieldStart("vertices");
+            for (Vertex vertex : allVertices.values()) {
+                generator.writeFieldName(vertex.getId());
+                generator.writeArray(new double[]{vertex.getLatitude().doubleValue(), vertex.getLongitude().doubleValue()}, 0, 2);
+            }
+            generator.writeEndObject();
+            generator.writeObjectFieldStart("cellMap");
+
+            String initiatorKey18Percent = "1760A8DF8F8A41FBF6377AD0677CC94C43C495A2979EA7FAD377EDE3297FCFB0";
+            String initiatorKey72Percent = "9D5BACFF02E13C65A1C5C5212298514747540A4C63CA065219338386C1C7DF26";
+
+            int cellCount = cells.size();
+            double seventyTwoPercent = cellCount * .72;
+
+            int i=0;
+            for (Cell cell : cells.values()) {
+                String initiator = i++ <= seventyTwoPercent ? initiatorKey72Percent : initiatorKey18Percent;
+                generator.writeObjectFieldStart(cell.getId());
+                generator.writeObjectField("initiator", initiator);
+                generator.writeArrayFieldStart("vertices");
+
+                List<Vertex> vertices = cell.getVertices();
+                generator.writeStartArray();
+                for (Vertex vertex : vertices) {
+                    generator.writeString(vertex.getId());
+                }
+                generator.writeEndArray();
+                generator.writeEndArray();
+                generator.writeEndObject();
+            }
+
+            generator.writeEndObject();
+        } catch (Throwable e) {
+            e.printStackTrace();
+        } finally {
+            if (generator != null) {
+                try {
+                    generator.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     private void report() {
@@ -422,7 +489,7 @@ public class Sphere {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
         parallel.forEach(f -> {
-        //for(int f=0; f < this.proxies.length; f++) {
+            //for(int f=0; f < this.proxies.length; f++) {
             CellProxy proxy = this.proxies[f];
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
             Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
@@ -432,9 +499,26 @@ public class Sphere {
             } catch (Exception e) {
                 throw new RuntimeException("Can't add", e);
             }
-        //}
+            //}
         });
         //databaseLoader.completeVertices();
+        report();
+        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
+    }
+
+    public void collect(Map<String, Vertex> vertexCollector, Map<String, Cell> cellCollector) {
+        int n = this.proxies.length;
+        IntStream parallel = IntStream.range(0, n).parallel();
+        parallel.forEach(f -> {
+            //for(int f=0; f < this.proxies.length; f++) {
+            CellProxy proxy = this.proxies[f];
+            List<Vertex> allVertices = proxy.populateSharedVertices(false);
+            for (Vertex vertex : allVertices) {
+                vertexCollector.put(vertex.getId(), vertex);
+            }
+            Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
+            cellCollector.put(cell.getId(), cell);
+        });
         report();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
