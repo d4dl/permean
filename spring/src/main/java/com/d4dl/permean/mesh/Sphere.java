@@ -51,6 +51,9 @@ public class Sphere {
     private AtomicInteger savedVertexCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
 
+    private final static String initiatorKey18Percent = "1760A8DF8F8A41FBF6377AD0677CC94C43C495A2979EA7FAD377EDE3297FCFB0";
+    private final static String initiatorKey72Percent = "9D5BACFF02E13C65A1C5C5212298514747540A4C63CA065219338386C1C7DF26";
+
 
     private int cellProxiesLength = -1;
     private int vertexCount = -1;
@@ -129,72 +132,82 @@ public class Sphere {
         }
         Map<String, Vertex> allVertices = new HashMap();
         Map<String, Cell> cells = new HashMap();
+        JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.zip");
+        JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.zip");
+        double seventyTwoPercent = cellProxiesLength * .72;
+        saveCells(vertexGenerator, cellsGenerator, seventyTwoPercent);
         if(databaseLoader != null) {
-            saveVertices();
-            saveCells();
             databaseLoader.stop();
         }
-        collect(allVertices, cells);
-        outputJSON(allVertices, cells);
+        try {
+            vertexGenerator.writeEndObject();
+            cellsGenerator.writeEndObject();
+            vertexGenerator.writeEndObject();
+            cellsGenerator.writeEndObject();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally {
+            closeGenerator(vertexGenerator);
+            closeGenerator(cellsGenerator);
+        }
         timer.cancel();
         task.cancel();
         System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
     }
 
-    private void outputJSON(Map<String, Vertex> allVertices, Map<String, Cell> cells) {
+
+    private JsonGenerator initializeGenerator(String objectName, String fileName) {
+
         JsonGenerator generator = null;
+
         try {
-            String fileName = "mesh.json";
-            File outputFile = new File(fileName);
-            OutputStream stream = new ZipOutputStream(new FileOutputStream(outputFile));
-            // OutputStream stream = new FileOutputStream(outputFile);
+            File fileOut = new File(fileName);
+            OutputStream out = new ZipOutputStream(new FileOutputStream(fileOut));
+            // OutputStream out = new FileOutputStream(fileOut);
             JsonFactory jfactory = new JsonFactory();
-
-            generator = jfactory.createGenerator(stream, JsonEncoding.UTF8);
-            // generator.useDefaultPrettyPrinter();
+            generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
+            generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
-            generator.writeObjectFieldStart("vertices");
-            for (Vertex vertex : allVertices.values()) {
-                generator.writeFieldName(vertex.getId());
-                generator.writeArray(new double[]{vertex.getLatitude().doubleValue(), vertex.getLongitude().doubleValue()}, 0, 2);
-            }
-            generator.writeEndObject();
-            generator.writeObjectFieldStart("cellMap");
-
-            String initiatorKey18Percent = "1760A8DF8F8A41FBF6377AD0677CC94C43C495A2979EA7FAD377EDE3297FCFB0";
-            String initiatorKey72Percent = "9D5BACFF02E13C65A1C5C5212298514747540A4C63CA065219338386C1C7DF26";
-
-            int cellCount = cells.size();
-            double seventyTwoPercent = cellCount * .72;
-
-            int i=0;
-            for (Cell cell : cells.values()) {
-                String initiator = i++ <= seventyTwoPercent ? initiatorKey72Percent : initiatorKey18Percent;
-                generator.writeObjectFieldStart(cell.getId());
-                generator.writeObjectField("initiator", initiator);
-                generator.writeFieldName("vertices");
-
-                List<Vertex> vertices = cell.getVertices();
-                generator.writeStartArray();
-                for (Vertex vertex : vertices) {
-                    generator.writeString(vertex.getId());
-                }
-                generator.writeEndArray();
-                generator.writeEndObject();
-            }
-
-            generator.writeEndObject();
-        } catch (Throwable e) {
+            generator.writeObjectFieldStart(objectName);
+        } catch (IOException e) {
             e.printStackTrace();
-        } finally {
-            if (generator != null) {
-                try {
-                    generator.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            throw new RuntimeException(e);
+        }
+
+        return generator;
+    }
+
+    private void writeCells(JsonGenerator cellsGenerator, String initiator, Cell cell)
+        throws IOException {
+        cellsGenerator.writeObjectFieldStart(cell.getId());
+        cellsGenerator.writeObjectField("initiator", initiator);
+        cellsGenerator.writeFieldName("vertices");
+
+        List<Vertex> vertices = cell.getVertices();
+        cellsGenerator.writeStartArray();
+        for (Vertex vertex : vertices) {
+            cellsGenerator.writeString(vertex.getId());
+        }
+        cellsGenerator.writeEndArray();
+        cellsGenerator.writeEndObject();
+    }
+
+    private void closeGenerator(JsonGenerator cellsGenerator) {
+        if (cellsGenerator != null) {
+            try {
+                cellsGenerator.close();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
+        }
+    }
+
+    private void writeVertices(List<Vertex> allVertices, JsonGenerator generator)
+        throws IOException {
+        for (Vertex vertex : allVertices) {
+            generator.writeFieldName(vertex.getId());
+            generator.writeArray(new double[]{vertex.getLatitude().doubleValue(), vertex.getLongitude().doubleValue()}, 0, 2);
         }
     }
 
@@ -484,41 +497,29 @@ public class Sphere {
 
 
 
-    public void saveCells() {
+    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double seventyTwoPercent) {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
-        parallel.forEach(f -> {
-            //for(int f=0; f < this.proxies.length; f++) {
+        //parallel.forEach(f -> {
+        for(int f=0; f < this.proxies.length; f++) {
+          String initiator = f >= seventyTwoPercent ? initiatorKey18Percent : initiatorKey72Percent ;
             CellProxy proxy = this.proxies[f];
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
             Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
             try {
-                databaseLoader.add(cell);
+                writeVertices(allVertices, vertexGenerator);
+                writeCells(cellsGenerator, initiator, cell);
+
+                if (databaseLoader != null) {
+                    databaseLoader.add(cell);
+                }
                 savedCellCount.incrementAndGet();
             } catch (Exception e) {
                 throw new RuntimeException("Can't add", e);
             }
-            //}
-        });
+        }
+        //});
         //databaseLoader.completeVertices();
-        report();
-        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
-    }
-
-    public void collect(Map<String, Vertex> vertexCollector, Map<String, Cell> cellCollector) {
-        int n = this.proxies.length;
-        IntStream parallel = IntStream.range(0, n).parallel();
-        parallel.forEach(f -> {
-            savedVertexCount.incrementAndGet();
-            //for(int f=0; f < this.proxies.length; f++) {
-            CellProxy proxy = this.proxies[f];
-            List<Vertex> allVertices = proxy.populateSharedVertices(false);
-            for (Vertex vertex : allVertices) {
-                vertexCollector.put(vertex.getId(), vertex);
-            }
-            Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
-            cellCollector.put(cell.getId(), cell);
-        });
         report();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
