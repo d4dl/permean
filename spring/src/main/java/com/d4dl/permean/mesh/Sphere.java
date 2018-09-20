@@ -8,6 +8,8 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
@@ -51,8 +53,8 @@ public class Sphere {
     private AtomicInteger savedVertexCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
 
-    private final static String initiatorKey18Percent = "1760A8DF8F8A41FBF6377AD0677CC94C43C495A2979EA7FAD377EDE3297FCFB0";
-    private final static String initiatorKey72Percent = "9D5BACFF02E13C65A1C5C5212298514747540A4C63CA065219338386C1C7DF26";
+    private final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
+    private final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
 
 
     private int cellProxiesLength = -1;
@@ -130,12 +132,10 @@ public class Sphere {
         if(outputKML) {
             outputKML();
         }
-        Map<String, Vertex> allVertices = new HashMap();
-        Map<String, Cell> cells = new HashMap();
-        JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.zip");
-        JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.zip");
-        double seventyTwoPercent = cellProxiesLength * .72;
-        saveCells(vertexGenerator, cellsGenerator, seventyTwoPercent);
+        JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.gz");
+        JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.gz");
+        double eightyTwoPercent = cellProxiesLength * .82;
+        saveCells(vertexGenerator, cellsGenerator, eightyTwoPercent);
         if(databaseLoader != null) {
             databaseLoader.stop();
         }
@@ -163,11 +163,11 @@ public class Sphere {
 
         try {
             File fileOut = new File(fileName);
-            //OutputStream out = new ZipOutputStream(new FileOutputStream(fileOut));
-            OutputStream out = new FileOutputStream(fileOut);
+
+            OutputStream out = new GZIPOutputStream(new FileOutputStream(fileOut));
             JsonFactory jfactory = new JsonFactory();
             generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
-            // generator.useDefaultPrettyPrinter();
+            generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
             generator.writeObjectFieldStart(objectName);
         } catch (IOException e) {
@@ -497,12 +497,12 @@ public class Sphere {
 
 
 
-    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double seventyTwoPercent) {
+    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double eightyTwoPercent) {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
         //parallel.forEach(f -> {
         for(int f=0; f < this.proxies.length; f++) {
-          String initiator = f >= seventyTwoPercent ? initiatorKey18Percent : initiatorKey72Percent ;
+          String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent ;
             CellProxy proxy = this.proxies[f];
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
             Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
