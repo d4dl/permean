@@ -147,12 +147,12 @@ public class Sphere {
         try {
             String fileName = "mesh.json";
             File outputFile = new File(fileName);
-            // OutputStream stream = new ZipOutputStream(new FileOutputStream(outputFile));
-            OutputStream stream = new FileOutputStream(outputFile);
+            OutputStream stream = new ZipOutputStream(new FileOutputStream(outputFile));
+            // lOutputStream stream = new FileOutputStream(outputFile);
             JsonFactory jfactory = new JsonFactory();
 
             generator = jfactory.createGenerator(stream, JsonEncoding.UTF8);
-            generator.useDefaultPrettyPrinter();
+            //generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
             generator.writeObjectFieldStart("vertices");
             for (Vertex vertex : allVertices.values()) {
@@ -510,6 +510,7 @@ public class Sphere {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
         parallel.forEach(f -> {
+            savedVertexCount.incrementAndGet();
             //for(int f=0; f < this.proxies.length; f++) {
             CellProxy proxy = this.proxies[f];
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
