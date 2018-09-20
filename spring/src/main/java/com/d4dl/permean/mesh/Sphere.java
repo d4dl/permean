@@ -148,11 +148,11 @@ public class Sphere {
             String fileName = "mesh.json";
             File outputFile = new File(fileName);
             OutputStream stream = new ZipOutputStream(new FileOutputStream(outputFile));
-            // lOutputStream stream = new FileOutputStream(outputFile);
+            // OutputStream stream = new FileOutputStream(outputFile);
             JsonFactory jfactory = new JsonFactory();
 
             generator = jfactory.createGenerator(stream, JsonEncoding.UTF8);
-            //generator.useDefaultPrettyPrinter();
+            // generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
             generator.writeObjectFieldStart("vertices");
             for (Vertex vertex : allVertices.values()) {
@@ -173,14 +173,13 @@ public class Sphere {
                 String initiator = i++ <= seventyTwoPercent ? initiatorKey72Percent : initiatorKey18Percent;
                 generator.writeObjectFieldStart(cell.getId());
                 generator.writeObjectField("initiator", initiator);
-                generator.writeArrayFieldStart("vertices");
+                generator.writeFieldName("vertices");
 
                 List<Vertex> vertices = cell.getVertices();
                 generator.writeStartArray();
                 for (Vertex vertex : vertices) {
                     generator.writeString(vertex.getId());
                 }
-                generator.writeEndArray();
                 generator.writeEndArray();
                 generator.writeEndObject();
             }
