@@ -73,6 +73,9 @@ public class Sphere {
     private static double AVG_EARTH_RADIUS_MI = 3959;
     int goodDivisionsValue = 6833;
 
+    //The laptop can do this easily.  It produces 25 million regions of 7.7 square miles each
+    int anotherGoodDivisionsValue = 1600;
+
     public Sphere(int divisions, DatabaseLoader loader) {
         this.divisions = divisions;
         this.databaseLoader = loader;
@@ -89,7 +92,9 @@ public class Sphere {
         cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
         proxies = new CellProxy[cellProxiesLength];
-        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.");
+        double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
+        double cellArea = sphereRadius / cellProxiesLength;
+        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
 
         //List<HexCell> cellList = Arrays.asList(proxies);
         TimerTask task = new TimerTask() {
@@ -112,7 +117,7 @@ public class Sphere {
             return hexCell;
         });
 
-        System.out.println("Finished creating the cell proxies");
+        System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
         IntStream.range(0, proxies.length).parallel().forEach(i -> {
             //for(int i=0; i < proxies.length; i++) {
             linkedCellCount.incrementAndGet();
@@ -216,7 +221,7 @@ public class Sphere {
             report("Created", proxies.length, createdProxyCount.get(), "CellProxies");
             report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
             report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
-            report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
+            //report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
             report("Saved", proxies.length, savedCellCount.get(), "Cells");
             System.out.print("\n");
         }

@@ -13,7 +13,7 @@ import java.util.*;
  */
 public class CellProxy implements Serializable {
 
-    private Sphere parent;
+    private Sphere parentSphere;
     private int index;
     private final boolean isPentagon;
     private CellProxy[] adjacentCells;
@@ -22,10 +22,10 @@ public class CellProxy implements Serializable {
     private Position barycenter;
     private String name;
 
-    CellProxy(Sphere parent, int index) {
-        this.parent = parent;
+    CellProxy(Sphere parentSphere, int index) {
+        this.parentSphere = parentSphere;
         this.index = index;
-        isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parent.getDivisions()) == 0));
+        isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parentSphere.getDivisions()) == 0));
     }
 
     public int[] getSxy() {
@@ -33,8 +33,8 @@ public class CellProxy implements Serializable {
             return null;
         } else {
             int l = index - 2;
-            int x_lim = parent.getDivisions() * 2;
-            int y_lim = parent.getDivisions();
+            int x_lim = parentSphere.getDivisions() * 2;
+            int y_lim = parentSphere.getDivisions();
 
             int s = (int) Math.floor(l / (x_lim * y_lim));
             int x = (int) Math.floor((l - s * x_lim * y_lim) / y_lim);
@@ -54,7 +54,7 @@ public class CellProxy implements Serializable {
 
     public void link() {
         {
-            int d = parent.getDivisions();
+            int d = parentSphere.getDivisions();
             int[] sxy = getSxy();
             ;
             int max_x = d * 2 - 1;
@@ -63,19 +63,19 @@ public class CellProxy implements Serializable {
             // Link polar pentagons to the adjacent cells
             if (this.index == 0) {
                 this.adjacentCells = new CellProxy[]{
-                        parent.get(0, 0, 0),
-                        parent.get(1, 0, 0),
-                        parent.get(2, 0, 0),
-                        parent.get(3, 0, 0),
-                        parent.get(4, 0, 0)
+                        parentSphere.get(0, 0, 0),
+                        parentSphere.get(1, 0, 0),
+                        parentSphere.get(2, 0, 0),
+                        parentSphere.get(3, 0, 0),
+                        parentSphere.get(4, 0, 0)
                 };
             } else if (this.index == 1) {
                 this.adjacentCells = new CellProxy[]{
-                        parent.get(0, max_x, max_y),
-                        parent.get(1, max_x, max_y),
-                        parent.get(2, max_x, max_y),
-                        parent.get(3, max_x, max_y),
-                        parent.get(4, max_x, max_y)
+                        parentSphere.get(0, max_x, max_y),
+                        parentSphere.get(1, max_x, max_y),
+                        parentSphere.get(2, max_x, max_y),
+                        parentSphere.get(3, max_x, max_y),
+                        parentSphere.get(4, max_x, max_y)
                 };
             } else {
                 int next = (sxy[0] + 1 + Sphere.PEELS) % Sphere.PEELS;
@@ -89,48 +89,48 @@ public class CellProxy implements Serializable {
 
                 // 0: northwestern adjacent (x--)
                 if (x > 0) {
-                    this.adjacentCells[0] = parent.get(s, x - 1, y);
+                    this.adjacentCells[0] = parentSphere.get(s, x - 1, y);
                 } else {
                     if (y == 0) {
-                        this.adjacentCells[0] = parent.getNorth();
+                        this.adjacentCells[0] = parentSphere.getNorth();
                     } else {
-                        this.adjacentCells[0] = parent.get(prev, y - 1, 0);
+                        this.adjacentCells[0] = parentSphere.get(prev, y - 1, 0);
                     }
                 }
 
                 // 1: western adjacent (x--, y++)
                 if (x == 0) {
                     // attach northwestern edge to previous north-northeastern edge
-                    this.adjacentCells[1] = parent.get(prev, y, 0);
+                    this.adjacentCells[1] = parentSphere.get(prev, y, 0);
                 } else {
                     if (y == max_y) {
                         // attach southwestern edge...
                         if (x > d) {
                             // ...to previous southeastern edge
-                            this.adjacentCells[1] = parent.get(prev, max_x, x - d);
+                            this.adjacentCells[1] = parentSphere.get(prev, max_x, x - d);
                         } else {
                             // ...to previous east-northeastern edge
-                            this.adjacentCells[1] = parent.get(prev, x + d - 1, 0);
+                            this.adjacentCells[1] = parentSphere.get(prev, x + d - 1, 0);
                         }
                     } else {
-                        this.adjacentCells[1] = parent.get(s, x - 1, y + 1);
+                        this.adjacentCells[1] = parentSphere.get(s, x - 1, y + 1);
                     }
                 }
 
                 // 2: southwestern adjacent (y++)
                 if (y < max_y) {
-                    this.adjacentCells[2] = parent.get(s, x, y + 1);
+                    this.adjacentCells[2] = parentSphere.get(s, x, y + 1);
                 } else {
                     if (x == max_x && y == max_y) {
-                        this.adjacentCells[2] = parent.getSouth();
+                        this.adjacentCells[2] = parentSphere.getSouth();
                     } else {
                         // attach southwestern edge...
                         if (x >= d) {
                             // ...to previous southeastern edge
-                            this.adjacentCells[2] = parent.get(prev, max_x, x - d + 1);
+                            this.adjacentCells[2] = parentSphere.get(prev, max_x, x - d + 1);
                         } else {
                             // ...to previous east-northeastern edge
-                            this.adjacentCells[2] = parent.get(prev, x + d, 0);
+                            this.adjacentCells[2] = parentSphere.get(prev, x + d, 0);
                         }
                     }
                 }
@@ -139,51 +139,51 @@ public class CellProxy implements Serializable {
                     // the last two aren't the same for pentagons
                     if (x == d - 1) {
                         // this is the northern tropical pentagon
-                        this.adjacentCells[3] = parent.get(s, x + 1, 0);
-                        this.adjacentCells[4] = parent.get(next, 0, max_y);
+                        this.adjacentCells[3] = parentSphere.get(s, x + 1, 0);
+                        this.adjacentCells[4] = parentSphere.get(next, 0, max_y);
                     } else if (x == max_x) {
                         // this is the southern tropical pentagon
-                        this.adjacentCells[3] = parent.get(next, d, max_y);
-                        this.adjacentCells[4] = parent.get(next, d - 1, max_y);
+                        this.adjacentCells[3] = parentSphere.get(next, d, max_y);
+                        this.adjacentCells[4] = parentSphere.get(next, d - 1, max_y);
                     }
                 } else {
                     // 3: southeastern adjacent (x++)
                     if (x == max_x) {
-                        this.adjacentCells[3] = parent.get(next, y + d, max_y);
+                        this.adjacentCells[3] = parentSphere.get(next, y + d, max_y);
                     } else {
-                        this.adjacentCells[3] = parent.get(s, x + 1, y);
+                        this.adjacentCells[3] = parentSphere.get(s, x + 1, y);
                     }
 
                     // 4: eastern adjacent (x++, y--)
                     if (x == max_x) {
-                        this.adjacentCells[4] = parent.get(next, y + d - 1, max_y);
+                        this.adjacentCells[4] = parentSphere.get(next, y + d - 1, max_y);
                     } else {
                         if (y == 0) {
                             // attach northeastern side to...
                             if (x < d) {
                                 // ...to next northwestern edge
-                                this.adjacentCells[4] = parent.get(next, 0, x + 1);
+                                this.adjacentCells[4] = parentSphere.get(next, 0, x + 1);
                             } else {
                                 // ...to next west-southwestern edge
-                                this.adjacentCells[4] = parent.get(next, x - d + 1, max_y);
+                                this.adjacentCells[4] = parentSphere.get(next, x - d + 1, max_y);
                             }
                         } else {
-                            this.adjacentCells[4] = parent.get(s, x + 1, y - 1);
+                            this.adjacentCells[4] = parentSphere.get(s, x + 1, y - 1);
                         }
                     }
 
                     // 5: northeastern adjacent (y--)
                     if (y > 0) {
-                        this.adjacentCells[5] = parent.get(s, x, y - 1);
+                        this.adjacentCells[5] = parentSphere.get(s, x, y - 1);
                     } else {
                         if (y == 0) {
                             // attach northeastern side to...
                             if (x < d) {
                                 // ...to next northwestern edge
-                                this.adjacentCells[5] = parent.get(next, 0, x);
+                                this.adjacentCells[5] = parentSphere.get(next, 0, x);
                             } else {
                                 // ...to next west-southwestern edge
-                                this.adjacentCells[5] = parent.get(next, x - d, max_y);
+                                this.adjacentCells[5] = parentSphere.get(next, x - d, max_y);
                             }
                         }
                     }
@@ -253,9 +253,9 @@ public class CellProxy implements Serializable {
             //These three positions represent the triangle whose vertices are the three barycenters
             //that can be used to calculate the centroid of said triangle which is the vertex that
             //the three cells share.
-            Position firstPos = parent.getCellProxies()[this.getIndex()].getBarycenter();
-            Position secondPos = parent.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
-            Position thirdPos = parent.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
+            Position firstPos = parentSphere.getCellProxies()[this.getIndex()].getBarycenter();
+            Position secondPos = parentSphere.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
+            Position thirdPos = parentSphere.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
             Position centroid = firstPos.centroid(index, secondPos, thirdPos);
             String uuid = stableUUID;
             Vertex sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
@@ -282,7 +282,7 @@ public class CellProxy implements Serializable {
 
     public void setBarycenter(double φ, double λ) {
         this.barycenter = new Position(φ, λ);
-        parent.incrementBarycenterCount();
+        parentSphere.incrementBarycenterCount();
     }
 
     public void setName(String name) {
