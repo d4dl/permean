@@ -27,15 +27,12 @@ public class CellProxy implements Serializable {
     /**
      *
      * @param parentSphere
-     * @param index
-     * @param cellProxyIndexMap used to keep track of the cellProxyIndices as an optimization
      */
-    CellProxy(Sphere parentSphere, int index, Map<Integer, Integer[]> cellProxyIndexMap) {
+    CellProxy(Sphere parentSphere, int index) {
       this.parentSphere = parentSphere;
       this.index = index;
       isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parentSphere.getDivisions()) == 0));
       Integer[] adjacentCellIndices = new Integer[isPentagon ? 5 : 6];
-      cellProxyIndexMap.put(this.index, adjacentCellIndices);
     }
 
     public int[] getSxy() {
@@ -60,149 +57,148 @@ public class CellProxy implements Serializable {
 
     public CellProxy getAdjacent(int p) {
         // return adjacentCellIndices[p == adjacentCellIndices.length ? 0 : p];
-      Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
+        Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
         int cellIndex = adjacentCellIndices[p == adjacentCellIndices.length ? 0 : p];
         return this.parentSphere.getCell(cellIndex);
     }
 
     public void link() {
-        Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
-        {
-            int d = parentSphere.getDivisions();
-            int[] sxy = getSxy();
-            ;
-            int max_x = d * 2 - 1;
-            int max_y = d - 1;
+        Integer[] adjacentCellIndices = new Integer[isPentagon ? 5 : 6];
+        int d = parentSphere.getDivisions();
+        int[] sxy = getSxy();
+        ;
+        int max_x = d * 2 - 1;
+        int max_y = d - 1;
 
-            // Link polar pentagons to the adjacent cells
-            if (this.index == 0) {
-                adjacentCellIndices = new Integer[]{
-                        parentSphere.getCellIndex(0, 0, 0),
-                        parentSphere.getCellIndex(1, 0, 0),
-                        parentSphere.getCellIndex(2, 0, 0),
-                        parentSphere.getCellIndex(3, 0, 0),
-                        parentSphere.getCellIndex(4, 0, 0)
-                };
-            } else if (this.index == 1) {
-                adjacentCellIndices = new Integer[]{
-                        parentSphere.getCellIndex(0, max_x, max_y),
-                        parentSphere.getCellIndex(1, max_x, max_y),
-                        parentSphere.getCellIndex(2, max_x, max_y),
-                        parentSphere.getCellIndex(3, max_x, max_y),
-                        parentSphere.getCellIndex(4, max_x, max_y)
-                };
+        // Link polar pentagons to the adjacent cells
+        if (this.index == 0) {
+            adjacentCellIndices = new Integer[]{
+                parentSphere.getCellIndex(0, 0, 0),
+                parentSphere.getCellIndex(1, 0, 0),
+                parentSphere.getCellIndex(2, 0, 0),
+                parentSphere.getCellIndex(3, 0, 0),
+                parentSphere.getCellIndex(4, 0, 0)
+            };
+        } else if (this.index == 1) {
+            adjacentCellIndices = new Integer[]{
+                parentSphere.getCellIndex(0, max_x, max_y),
+                parentSphere.getCellIndex(1, max_x, max_y),
+                parentSphere.getCellIndex(2, max_x, max_y),
+                parentSphere.getCellIndex(3, max_x, max_y),
+                parentSphere.getCellIndex(4, max_x, max_y)
+            };
+        } else {
+            int next = (sxy[0] + 1 + Sphere.PEELS) % Sphere.PEELS;
+            int prev = (sxy[0] - 1 + Sphere.PEELS) % Sphere.PEELS;
+
+            int s = sxy[0];
+            int x = sxy[1];
+            int y = sxy[2];
+
+            // 0: northwestern adjacent (x--)
+            if (x > 0) {
+                adjacentCellIndices[0] = parentSphere.getCellIndex(s, x - 1, y);
             } else {
-                int next = (sxy[0] + 1 + Sphere.PEELS) % Sphere.PEELS;
-                int prev = (sxy[0] - 1 + Sphere.PEELS) % Sphere.PEELS;
+                if (y == 0) {
+                    adjacentCellIndices[0] = parentSphere.getNorthCellIndex();
+                } else {
+                    adjacentCellIndices[0] = parentSphere.getCellIndex(prev, y - 1, 0);
+                }
+            }
 
-                int s = sxy[0];
-                int x = sxy[1];
-                int y = sxy[2];
+            // 1: western adjacent (x--, y++)
+            if (x == 0) {
+                // attach northwestern edge to previous north-northeastern edge
+                adjacentCellIndices[1] = parentSphere.getCellIndex(prev, y, 0);
+            } else {
+                if (y == max_y) {
+                    // attach southwestern edge...
+                    if (x > d) {
+                        // ...to previous southeastern edge
+                        adjacentCellIndices[1] = parentSphere.getCellIndex(prev, max_x, x - d);
+                    } else {
+                        // ...to previous east-northeastern edge
+                        adjacentCellIndices[1] = parentSphere.getCellIndex(prev, x + d - 1, 0);
+                    }
+                } else {
+                    adjacentCellIndices[1] = parentSphere.getCellIndex(s, x - 1, y + 1);
+                }
+            }
 
+            // 2: southwestern adjacent (y++)
+            if (y < max_y) {
+                adjacentCellIndices[2] = parentSphere.getCellIndex(s, x, y + 1);
+            } else {
+                if (x == max_x && y == max_y) {
+                    adjacentCellIndices[2] = parentSphere.getSouthCellIndex();
+                } else {
+                    // attach southwestern edge...
+                    if (x >= d) {
+                        // ...to previous southeastern edge
+                        adjacentCellIndices[2] = parentSphere.getCellIndex(prev, max_x, x - d + 1);
+                    } else {
+                        // ...to previous east-northeastern edge
+                        adjacentCellIndices[2] = parentSphere.getCellIndex(prev, x + d, 0);
+                    }
+                }
+            }
 
-                // 0: northwestern adjacent (x--)
-                if (x > 0) {
-                    adjacentCellIndices[0] = parentSphere.getCellIndex(s, x - 1, y);
+            if (isPentagon) {
+                // the last two aren't the same for pentagons
+                if (x == d - 1) {
+                    // this is the northern tropical pentagon
+                    adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, 0);
+                    adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, max_y);
+                } else if (x == max_x) {
+                    // this is the southern tropical pentagon
+                    adjacentCellIndices[3] = parentSphere.getCellIndex(next, d, max_y);
+                    adjacentCellIndices[4] = parentSphere.getCellIndex(next, d - 1, max_y);
+                }
+            } else {
+                // 3: southeastern adjacent (x++)
+                if (x == max_x) {
+                    adjacentCellIndices[3] = parentSphere.getCellIndex(next, y + d, max_y);
+                } else {
+                    adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, y);
+                }
+
+                // 4: eastern adjacent (x++, y--)
+                if (x == max_x) {
+                    adjacentCellIndices[4] = parentSphere.getCellIndex(next, y + d - 1, max_y);
                 } else {
                     if (y == 0) {
-                        adjacentCellIndices[0] = parentSphere.getNorthCellIndex();
+                        // attach northeastern side to...
+                        if (x < d) {
+                            // ...to next northwestern edge
+                            adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, x + 1);
+                        } else {
+                            // ...to next west-southwestern edge
+                            adjacentCellIndices[4] = parentSphere
+                                .getCellIndex(next, x - d + 1, max_y);
+                        }
                     } else {
-                        adjacentCellIndices[0] = parentSphere.getCellIndex(prev, y - 1, 0);
+                        adjacentCellIndices[4] = parentSphere.getCellIndex(s, x + 1, y - 1);
                     }
                 }
 
-                // 1: western adjacent (x--, y++)
-                if (x == 0) {
-                    // attach northwestern edge to previous north-northeastern edge
-                    adjacentCellIndices[1] = parentSphere.getCellIndex(prev, y, 0);
+                // 5: northeastern adjacent (y--)
+                if (y > 0) {
+                    adjacentCellIndices[5] = parentSphere.getCellIndex(s, x, y - 1);
                 } else {
-                    if (y == max_y) {
-                        // attach southwestern edge...
-                        if (x > d) {
-                            // ...to previous southeastern edge
-                            adjacentCellIndices[1] = parentSphere.getCellIndex(prev, max_x, x - d);
+                    if (y == 0) {
+                        // attach northeastern side to...
+                        if (x < d) {
+                            // ...to next northwestern edge
+                            adjacentCellIndices[5] = parentSphere.getCellIndex(next, 0, x);
                         } else {
-                            // ...to previous east-northeastern edge
-                            adjacentCellIndices[1] = parentSphere.getCellIndex(prev, x + d - 1, 0);
-                        }
-                    } else {
-                        adjacentCellIndices[1] = parentSphere.getCellIndex(s, x - 1, y + 1);
-                    }
-                }
-
-                // 2: southwestern adjacent (y++)
-                if (y < max_y) {
-                    adjacentCellIndices[2] = parentSphere.getCellIndex(s, x, y + 1);
-                } else {
-                    if (x == max_x && y == max_y) {
-                        adjacentCellIndices[2] = parentSphere.getSouthCellIndex();
-                    } else {
-                        // attach southwestern edge...
-                        if (x >= d) {
-                            // ...to previous southeastern edge
-                            adjacentCellIndices[2] = parentSphere.getCellIndex(prev, max_x, x - d + 1);
-                        } else {
-                            // ...to previous east-northeastern edge
-                            adjacentCellIndices[2] = parentSphere.getCellIndex(prev, x + d, 0);
-                        }
-                    }
-                }
-
-                if (isPentagon) {
-                    // the last two aren't the same for pentagons
-                    if (x == d - 1) {
-                        // this is the northern tropical pentagon
-                        adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, 0);
-                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, max_y);
-                    } else if (x == max_x) {
-                        // this is the southern tropical pentagon
-                        adjacentCellIndices[3] = parentSphere.getCellIndex(next, d, max_y);
-                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, d - 1, max_y);
-                    }
-                } else {
-                    // 3: southeastern adjacent (x++)
-                    if (x == max_x) {
-                        adjacentCellIndices[3] = parentSphere.getCellIndex(next, y + d, max_y);
-                    } else {
-                        adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, y);
-                    }
-
-                    // 4: eastern adjacent (x++, y--)
-                    if (x == max_x) {
-                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, y + d - 1, max_y);
-                    } else {
-                        if (y == 0) {
-                            // attach northeastern side to...
-                            if (x < d) {
-                                // ...to next northwestern edge
-                                adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, x + 1);
-                            } else {
-                                // ...to next west-southwestern edge
-                                adjacentCellIndices[4] = parentSphere.getCellIndex(next, x - d + 1, max_y);
-                            }
-                        } else {
-                            adjacentCellIndices[4] = parentSphere.getCellIndex(s, x + 1, y - 1);
-                        }
-                    }
-
-                    // 5: northeastern adjacent (y--)
-                    if (y > 0) {
-                        adjacentCellIndices[5] = parentSphere.getCellIndex(s, x, y - 1);
-                    } else {
-                        if (y == 0) {
-                            // attach northeastern side to...
-                            if (x < d) {
-                                // ...to next northwestern edge
-                                adjacentCellIndices[5] = parentSphere.getCellIndex(next, 0, x);
-                            } else {
-                                // ...to next west-southwestern edge
-                                adjacentCellIndices[5] = parentSphere.getCellIndex(next, x - d, max_y);
-                            }
+                            // ...to next west-southwestern edge
+                            adjacentCellIndices[5] = parentSphere.getCellIndex(next, x - d, max_y);
                         }
                     }
                 }
             }
         }
+        parentSphere.setAdjacentCellIndices(this.index, adjacentCellIndices);
     }
 
     public boolean isPentagon() {

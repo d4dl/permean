@@ -42,7 +42,7 @@ import static java.lang.StrictMath.*;
  */
 public class Sphere {
     // public static final File CELL_PROXY_INDICES = new File("/tmp/cellProxyIndexMaps", "cellProxyIndices");
-    public static final String shmDir = "/Volumes/RAMDisk/cellProxyIndexMaps";
+    public static final String shmDir = "/tmp/cellProxyIndexMaps";
     public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
     private final int divisions;
@@ -53,7 +53,7 @@ public class Sphere {
     private boolean iterating;
     private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
-    private ChronicleMap<Integer, Integer[]> cellProxyIndexMap;
+    private ChronicleMap<Integer, Object> cellProxyIndexMap;
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
@@ -101,12 +101,13 @@ public class Sphere {
             cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
             vertexCount = divisions * divisions * 20;
             proxies = new CellProxy[cellProxiesLength];
+            Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
             new File(shmDir).mkdirs();
             // cellProxyIndices = new int[cellProxiesLength * 6];
             cellProxyIndexMap =
-                (ChronicleMap<Integer, Integer[]>) ChronicleMapBuilder.of(Integer.class, new Integer[0].getClass())
+                (ChronicleMap<Integer, Object>) ChronicleMapBuilder.of(Integer.class, Object.class)
                     .entries(cellProxiesLength) //the maximum number of entries for the map
-                    .averageValueSize(30)
+                    .averageValue(averageValue)
                     .createPersistedTo(CELL_PROXY_INDICES);
             double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
             double cellArea = sphereRadius / cellProxiesLength;
@@ -127,7 +128,7 @@ public class Sphere {
 
             Arrays.parallelSetAll(proxies, i -> {
                 createdProxyCount.incrementAndGet();
-                CellProxy hexCell = new CellProxy(this, i, cellProxyIndexMap);
+                CellProxy hexCell = new CellProxy(this, i);
                 if (hexCell.isPentagon()) {
                     pentagonCount.incrementAndGet();
                 }
@@ -174,7 +175,7 @@ public class Sphere {
             }
             timer.cancel();
             task.cancel();
-            System.out.println("Min was: " + minArea + " max was " + maxArea);
+            //System.out.println("Min was: " + minArea + " max was " + maxArea);
             System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
         } finally {
             if (Sphere.CELL_PROXY_INDICES.exists()) {
@@ -499,7 +500,7 @@ public class Sphere {
         }
         buffer.append("  </Document>\n" +
                 "</kml>");
-        String fileName = "/Users/joshuadeford/rings.kml";
+        String fileName = "~/rings.kml";
         File file = new File(fileName);
         try {
             System.out.println("Writing to file: " + fileName);
@@ -588,8 +589,12 @@ public class Sphere {
         populatedBaryCenterCount.getAndIncrement();
     }
 
+    public void setAdjacentCellIndices(Integer index, Integer[] adjacentCells) {
+        cellProxyIndexMap.put(index, adjacentCells);
+    }
+
     public Integer[] getAdjacentCellIndices(Integer index) {
-      return cellProxyIndexMap.get(index);
+      return (Integer[]) cellProxyIndexMap.get(index);
     }
 
     //public String toString() {
