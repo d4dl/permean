@@ -503,7 +503,7 @@ public class Sphere {
         String fileName = "~/rings.kml";
         File file = new File(fileName);
         try {
-            System.out.println("Writing to file: " + fileName);
+            System.out.println("Writing to file: " + file.getAbsolutePath());
             FileUtils.writeStringToFile(file, buffer.toString());
         } catch (IOException e) {
             e.printStackTrace();
