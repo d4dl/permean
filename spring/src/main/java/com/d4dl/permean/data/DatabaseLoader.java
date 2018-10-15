@@ -2,6 +2,7 @@ package com.d4dl.permean.data;
 
 import com.d4dl.permean.StatementWriter;
 import com.d4dl.permean.mesh.Sphere;
+import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -41,7 +42,7 @@ public class DatabaseLoader implements CommandLineRunner {
         segmentTheEarth();
     }
 
-    private void segmentTheEarth() {
+    private void segmentTheEarth() throws IOException {
         String parentSize = System.getProperty("sphere.divisions");
         if(parentSize == null) {
             System.out.println("Integer property sphere.divisions is required");

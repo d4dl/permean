@@ -1,5 +1,6 @@
 package com.d4dl.permean.data;
 
+import java.util.UUID;
 import lombok.Data;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
@@ -39,8 +40,8 @@ public class Cell extends BasicEntity {
 
     }
 
-    public Cell(String id, List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
-        setId(id);
+    public Cell(List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
+        setId(UUID.randomUUID().toString());
         this.centerLatitude = centerLatitude;
         this.centerLongitude = centerLongitude;
         this.vertices = vertices;

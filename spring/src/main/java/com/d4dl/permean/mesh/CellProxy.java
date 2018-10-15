@@ -1,6 +1,7 @@
 package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Vertex;
+import net.openhft.chronicle.map.ChronicleMap;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.Serializable;
@@ -16,16 +17,25 @@ public class CellProxy implements Serializable {
     private Sphere parentSphere;
     private int index;
     private final boolean isPentagon;
-    private CellProxy[] adjacentCells;
+    // private CellProxy[] adjacentCells;
+    // private int[] adjacentCellIndices;
     private double area;
     //Barycenter position
     private Position barycenter;
     private String name;
 
-    CellProxy(Sphere parentSphere, int index) {
-        this.parentSphere = parentSphere;
-        this.index = index;
-        isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parentSphere.getDivisions()) == 0));
+    /**
+     *
+     * @param parentSphere
+     * @param index
+     * @param cellProxyIndexMap used to keep track of the cellProxyIndices as an optimization
+     */
+    CellProxy(Sphere parentSphere, int index, Map<Integer, Integer[]> cellProxyIndexMap) {
+      this.parentSphere = parentSphere;
+      this.index = index;
+      isPentagon = ((index < 2) || (getSxy()[2] == 0 && ((getSxy()[1] + 1) % parentSphere.getDivisions()) == 0));
+      Integer[] adjacentCellIndices = new Integer[isPentagon ? 5 : 6];
+      cellProxyIndexMap.put(this.index, adjacentCellIndices);
     }
 
     public int[] getSxy() {
@@ -49,10 +59,14 @@ public class CellProxy implements Serializable {
 
 
     public CellProxy getAdjacent(int p) {
-        return this.adjacentCells[p == adjacentCells.length ? 0 : p];
+        // return adjacentCellIndices[p == adjacentCellIndices.length ? 0 : p];
+      Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
+        int cellIndex = adjacentCellIndices[p == adjacentCellIndices.length ? 0 : p];
+        return this.parentSphere.getCell(cellIndex);
     }
 
     public void link() {
+        Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
         {
             int d = parentSphere.getDivisions();
             int[] sxy = getSxy();
@@ -62,20 +76,20 @@ public class CellProxy implements Serializable {
 
             // Link polar pentagons to the adjacent cells
             if (this.index == 0) {
-                this.adjacentCells = new CellProxy[]{
-                        parentSphere.get(0, 0, 0),
-                        parentSphere.get(1, 0, 0),
-                        parentSphere.get(2, 0, 0),
-                        parentSphere.get(3, 0, 0),
-                        parentSphere.get(4, 0, 0)
+                adjacentCellIndices = new Integer[]{
+                        parentSphere.getCellIndex(0, 0, 0),
+                        parentSphere.getCellIndex(1, 0, 0),
+                        parentSphere.getCellIndex(2, 0, 0),
+                        parentSphere.getCellIndex(3, 0, 0),
+                        parentSphere.getCellIndex(4, 0, 0)
                 };
             } else if (this.index == 1) {
-                this.adjacentCells = new CellProxy[]{
-                        parentSphere.get(0, max_x, max_y),
-                        parentSphere.get(1, max_x, max_y),
-                        parentSphere.get(2, max_x, max_y),
-                        parentSphere.get(3, max_x, max_y),
-                        parentSphere.get(4, max_x, max_y)
+                adjacentCellIndices = new Integer[]{
+                        parentSphere.getCellIndex(0, max_x, max_y),
+                        parentSphere.getCellIndex(1, max_x, max_y),
+                        parentSphere.getCellIndex(2, max_x, max_y),
+                        parentSphere.getCellIndex(3, max_x, max_y),
+                        parentSphere.getCellIndex(4, max_x, max_y)
                 };
             } else {
                 int next = (sxy[0] + 1 + Sphere.PEELS) % Sphere.PEELS;
@@ -85,52 +99,51 @@ public class CellProxy implements Serializable {
                 int x = sxy[1];
                 int y = sxy[2];
 
-                this.adjacentCells = new CellProxy[isPentagon ? 5 : 6];
 
                 // 0: northwestern adjacent (x--)
                 if (x > 0) {
-                    this.adjacentCells[0] = parentSphere.get(s, x - 1, y);
+                    adjacentCellIndices[0] = parentSphere.getCellIndex(s, x - 1, y);
                 } else {
                     if (y == 0) {
-                        this.adjacentCells[0] = parentSphere.getNorth();
+                        adjacentCellIndices[0] = parentSphere.getNorthCellIndex();
                     } else {
-                        this.adjacentCells[0] = parentSphere.get(prev, y - 1, 0);
+                        adjacentCellIndices[0] = parentSphere.getCellIndex(prev, y - 1, 0);
                     }
                 }
 
                 // 1: western adjacent (x--, y++)
                 if (x == 0) {
                     // attach northwestern edge to previous north-northeastern edge
-                    this.adjacentCells[1] = parentSphere.get(prev, y, 0);
+                    adjacentCellIndices[1] = parentSphere.getCellIndex(prev, y, 0);
                 } else {
                     if (y == max_y) {
                         // attach southwestern edge...
                         if (x > d) {
                             // ...to previous southeastern edge
-                            this.adjacentCells[1] = parentSphere.get(prev, max_x, x - d);
+                            adjacentCellIndices[1] = parentSphere.getCellIndex(prev, max_x, x - d);
                         } else {
                             // ...to previous east-northeastern edge
-                            this.adjacentCells[1] = parentSphere.get(prev, x + d - 1, 0);
+                            adjacentCellIndices[1] = parentSphere.getCellIndex(prev, x + d - 1, 0);
                         }
                     } else {
-                        this.adjacentCells[1] = parentSphere.get(s, x - 1, y + 1);
+                        adjacentCellIndices[1] = parentSphere.getCellIndex(s, x - 1, y + 1);
                     }
                 }
 
                 // 2: southwestern adjacent (y++)
                 if (y < max_y) {
-                    this.adjacentCells[2] = parentSphere.get(s, x, y + 1);
+                    adjacentCellIndices[2] = parentSphere.getCellIndex(s, x, y + 1);
                 } else {
                     if (x == max_x && y == max_y) {
-                        this.adjacentCells[2] = parentSphere.getSouth();
+                        adjacentCellIndices[2] = parentSphere.getSouthCellIndex();
                     } else {
                         // attach southwestern edge...
                         if (x >= d) {
                             // ...to previous southeastern edge
-                            this.adjacentCells[2] = parentSphere.get(prev, max_x, x - d + 1);
+                            adjacentCellIndices[2] = parentSphere.getCellIndex(prev, max_x, x - d + 1);
                         } else {
                             // ...to previous east-northeastern edge
-                            this.adjacentCells[2] = parentSphere.get(prev, x + d, 0);
+                            adjacentCellIndices[2] = parentSphere.getCellIndex(prev, x + d, 0);
                         }
                     }
                 }
@@ -139,51 +152,51 @@ public class CellProxy implements Serializable {
                     // the last two aren't the same for pentagons
                     if (x == d - 1) {
                         // this is the northern tropical pentagon
-                        this.adjacentCells[3] = parentSphere.get(s, x + 1, 0);
-                        this.adjacentCells[4] = parentSphere.get(next, 0, max_y);
+                        adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, 0);
+                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, max_y);
                     } else if (x == max_x) {
                         // this is the southern tropical pentagon
-                        this.adjacentCells[3] = parentSphere.get(next, d, max_y);
-                        this.adjacentCells[4] = parentSphere.get(next, d - 1, max_y);
+                        adjacentCellIndices[3] = parentSphere.getCellIndex(next, d, max_y);
+                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, d - 1, max_y);
                     }
                 } else {
                     // 3: southeastern adjacent (x++)
                     if (x == max_x) {
-                        this.adjacentCells[3] = parentSphere.get(next, y + d, max_y);
+                        adjacentCellIndices[3] = parentSphere.getCellIndex(next, y + d, max_y);
                     } else {
-                        this.adjacentCells[3] = parentSphere.get(s, x + 1, y);
+                        adjacentCellIndices[3] = parentSphere.getCellIndex(s, x + 1, y);
                     }
 
                     // 4: eastern adjacent (x++, y--)
                     if (x == max_x) {
-                        this.adjacentCells[4] = parentSphere.get(next, y + d - 1, max_y);
+                        adjacentCellIndices[4] = parentSphere.getCellIndex(next, y + d - 1, max_y);
                     } else {
                         if (y == 0) {
                             // attach northeastern side to...
                             if (x < d) {
                                 // ...to next northwestern edge
-                                this.adjacentCells[4] = parentSphere.get(next, 0, x + 1);
+                                adjacentCellIndices[4] = parentSphere.getCellIndex(next, 0, x + 1);
                             } else {
                                 // ...to next west-southwestern edge
-                                this.adjacentCells[4] = parentSphere.get(next, x - d + 1, max_y);
+                                adjacentCellIndices[4] = parentSphere.getCellIndex(next, x - d + 1, max_y);
                             }
                         } else {
-                            this.adjacentCells[4] = parentSphere.get(s, x + 1, y - 1);
+                            adjacentCellIndices[4] = parentSphere.getCellIndex(s, x + 1, y - 1);
                         }
                     }
 
                     // 5: northeastern adjacent (y--)
                     if (y > 0) {
-                        this.adjacentCells[5] = parentSphere.get(s, x, y - 1);
+                        adjacentCellIndices[5] = parentSphere.getCellIndex(s, x, y - 1);
                     } else {
                         if (y == 0) {
                             // attach northeastern side to...
                             if (x < d) {
                                 // ...to next northwestern edge
-                                this.adjacentCells[5] = parentSphere.get(next, 0, x);
+                                adjacentCellIndices[5] = parentSphere.getCellIndex(next, 0, x);
                             } else {
                                 // ...to next west-southwestern edge
-                                this.adjacentCells[5] = parentSphere.get(next, x - d, max_y);
+                                adjacentCellIndices[5] = parentSphere.getCellIndex(next, x - d, max_y);
                             }
                         }
                     }
@@ -241,9 +254,10 @@ public class CellProxy implements Serializable {
     public List<Vertex> populateSharedVertices(boolean onlyReturnLowestIndexVertexes) {
 
         List<Vertex> addedVertices = new ArrayList();
-        for (int i = 0; i < adjacentCells.length; i++) {
+        Integer[] adjacentCellIndices = parentSphere.getAdjacentCellIndices(this.index);
+        for (int i = 0; i < adjacentCellIndices.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
-            CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
+            CellProxy secondAdjacent = getAdjacent(i == adjacentCellIndices.length ? 0 : i + 1);
             //The key of the vertex is the sorted index array of the three cells that share the
             //vertex.  It should be calculated only once then placed in the map for retrieval by
             //the other two cells that share the vertex.

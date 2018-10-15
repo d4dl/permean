@@ -8,9 +8,13 @@ import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.util.concurrent.ConcurrentMap;
 import java.util.zip.GZIPOutputStream;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
+import javax.persistence.criteria.CriteriaBuilder.In;
+import net.openhft.chronicle.map.ChronicleMap;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 
@@ -43,9 +47,11 @@ public class Sphere {
     private final AtomicInteger pentagonCount = new AtomicInteger(0);
     private final DatabaseLoader databaseLoader;
     private CellProxy[] proxies;
+    private int[] cellProxyIndices;
     private boolean iterating;
     private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
+    private ChronicleMap<Integer, Integer[]> cellProxyIndexMap;
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
@@ -81,17 +87,24 @@ public class Sphere {
         this.databaseLoader = loader;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         new Sphere(Integer.parseInt(System.getProperty("sphere.divisions")), null).buildCells();
     }
 
-    public void buildCells() {
+    public void buildCells() throws IOException {
         percentInstance.setMaximumFractionDigits(2);
 
         //You want 100,000,000 cells so they will be around 2 square miles each.
         cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
         proxies = new CellProxy[cellProxiesLength];
+        new File("/tmp/cellProxyIndexMaps").mkdirs();
+        // cellProxyIndices = new int[cellProxiesLength * 6];
+        cellProxyIndexMap =
+            (ChronicleMap<Integer, Integer[]>) ChronicleMapBuilder.of(Integer.class, new Integer[0].getClass())
+                .entries(cellProxiesLength) //the maximum number of entries for the map
+                .averageValueSize(30)
+                .createPersistedTo(new File("/tmp/cellProxyIndexMaps", "cellProxyIndices"));
         double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
         double cellArea = sphereRadius / cellProxiesLength;
         System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
@@ -110,7 +123,7 @@ public class Sphere {
 
         Arrays.parallelSetAll(proxies, i -> {
             createdProxyCount.incrementAndGet();
-            CellProxy hexCell = new CellProxy(this, i);
+            CellProxy hexCell = new CellProxy(this, i, cellProxyIndexMap);
             if (hexCell.isPentagon()) {
                 pentagonCount.incrementAndGet();
             }
@@ -234,12 +247,20 @@ public class Sphere {
                 ")");
     }
 
+    public int getNorthCellIndex() {
+        return 0;
+    }
+
+    public int getSouthCellIndex() {
+        return 1;
+    }
+
     public CellProxy getNorth() {
-        return this.proxies[0];
+        return this.proxies[getNorthCellIndex()];
     }
 
     public CellProxy getSouth() {
-        return this.proxies[1];
+        return this.proxies[getSouthCellIndex()];
     }
 
     public int getDivisions() {
@@ -410,10 +431,13 @@ public class Sphere {
         return proxies[i];
     }
 
-    public CellProxy get(int s, int x, int y) {
-        return this.proxies[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
+    public int getCellIndex(int s, int x, int y) {
+        return s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2;
     }
 
+    private CellProxy get(int s, int x, int y) {
+        return this.proxies[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
+    }
 
 
     private void outputKML() {
@@ -510,7 +534,7 @@ public class Sphere {
           String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent ;
             CellProxy proxy = this.proxies[f];
             List<Vertex> allVertices = proxy.populateSharedVertices(false);
-            Cell cell = new Cell(UUID.randomUUID().toString(), allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
+            Cell cell = new Cell(allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
             try {
                 writeVertices(allVertices, vertexGenerator);
                 writeCells(cellsGenerator, initiator, cell);
@@ -555,6 +579,9 @@ public class Sphere {
         populatedBaryCenterCount.getAndIncrement();
     }
 
+    public Integer[] getAdjacentCellIndices(Integer index) {
+      return cellProxyIndexMap.get(index);
+    }
 
     //public String toString() {
     //String out = "";
