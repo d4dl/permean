@@ -1,29 +1,28 @@
 package com.d4dl.permean.mesh;
 
-import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Cell;
+import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
-import java.io.FileOutputStream;
-import java.io.OutputStream;
-import java.util.concurrent.ConcurrentMap;
-import java.util.zip.GZIPOutputStream;
-import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
-import javax.persistence.criteria.CriteriaBuilder.In;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.FileUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.text.NumberFormat;
-import java.util.*;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import java.util.zip.GZIPOutputStream;
 
 import static java.lang.StrictMath.*;
 
@@ -42,6 +41,9 @@ import static java.lang.StrictMath.*;
  * @constructor
  */
 public class Sphere {
+    // public static final File CELL_PROXY_INDICES = new File("/tmp/cellProxyIndexMaps", "cellProxyIndices");
+    public static final String shmDir = "/Volumes/RAMDisk/cellProxyIndexMaps";
+    public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
     private final int divisions;
     private final AtomicInteger pentagonCount = new AtomicInteger(0);
@@ -92,86 +94,93 @@ public class Sphere {
     }
 
     public void buildCells() throws IOException {
-        percentInstance.setMaximumFractionDigits(2);
-
-        //You want 100,000,000 cells so they will be around 2 square miles each.
-        cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
-        vertexCount = divisions * divisions * 20;
-        proxies = new CellProxy[cellProxiesLength];
-        new File("/tmp/cellProxyIndexMaps").mkdirs();
-        // cellProxyIndices = new int[cellProxiesLength * 6];
-        cellProxyIndexMap =
-            (ChronicleMap<Integer, Integer[]>) ChronicleMapBuilder.of(Integer.class, new Integer[0].getClass())
-                .entries(cellProxiesLength) //the maximum number of entries for the map
-                .averageValueSize(30)
-                .createPersistedTo(new File("/tmp/cellProxyIndexMaps", "cellProxyIndices"));
-        double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
-        double cellArea = sphereRadius / cellProxiesLength;
-        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
-
-        //List<HexCell> cellList = Arrays.asList(proxies);
-        TimerTask task = new TimerTask() {
-            @Override
-            public void run() {
-                percentInstance = NumberFormat.getPercentInstance();
-                report();
-            }
-        };
-
-        //  task will be scheduled after 5 sec delay
-        timer.schedule(task, 1000, 1000);
-
-        Arrays.parallelSetAll(proxies, i -> {
-            createdProxyCount.incrementAndGet();
-            CellProxy hexCell = new CellProxy(this, i, cellProxyIndexMap);
-            if (hexCell.isPentagon()) {
-                pentagonCount.incrementAndGet();
-            }
-            return hexCell;
-        });
-
-        System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
-        IntStream.range(0, proxies.length).parallel().forEach(i -> {
-            //for(int i=0; i < proxies.length; i++) {
-            linkedCellCount.incrementAndGet();
-            proxies[i].link();
-            //}
-        });
-        System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
-
-        //for (int i = 0; i < proxies.length; i++) {
-        //this.proxies[i].link();
-        //}
-        populateBarycenters();//For all the proxies, determine and set their barycenters
-        System.out.println("Finished populating");
-        //System.out.println("Finished getting indexes");
-        report();
-        final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-        if(outputKML) {
-            outputKML();
-        }
-        JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.gz");
-        JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.gz");
-        double eightyTwoPercent = cellProxiesLength * .82;
-        saveCells(vertexGenerator, cellsGenerator, eightyTwoPercent);
-        if(databaseLoader != null) {
-            databaseLoader.stop();
-        }
         try {
-            vertexGenerator.writeEndObject();
-            cellsGenerator.writeEndObject();
-            vertexGenerator.writeEndObject();
-            cellsGenerator.writeEndObject();
-        } catch (IOException e) {
-            e.printStackTrace();
+            percentInstance.setMaximumFractionDigits(2);
+
+            //You want 100,000,000 cells so they will be around 2 square miles each.
+            cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
+            vertexCount = divisions * divisions * 20;
+            proxies = new CellProxy[cellProxiesLength];
+            new File(shmDir).mkdirs();
+            // cellProxyIndices = new int[cellProxiesLength * 6];
+            cellProxyIndexMap =
+                (ChronicleMap<Integer, Integer[]>) ChronicleMapBuilder.of(Integer.class, new Integer[0].getClass())
+                    .entries(cellProxiesLength) //the maximum number of entries for the map
+                    .averageValueSize(30)
+                    .createPersistedTo(CELL_PROXY_INDICES);
+            double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
+            double cellArea = sphereRadius / cellProxiesLength;
+            System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
+            CELL_PROXY_INDICES.deleteOnExit();
+
+            //List<HexCell> cellList = Arrays.asList(proxies);
+            TimerTask task = new TimerTask() {
+                @Override
+                public void run() {
+                    percentInstance = NumberFormat.getPercentInstance();
+                    report();
+                }
+            };
+
+            //  task will be scheduled after 5 sec delay
+            timer.schedule(task, 1000, 1000);
+
+            Arrays.parallelSetAll(proxies, i -> {
+                createdProxyCount.incrementAndGet();
+                CellProxy hexCell = new CellProxy(this, i, cellProxyIndexMap);
+                if (hexCell.isPentagon()) {
+                    pentagonCount.incrementAndGet();
+                }
+                return hexCell;
+            });
+
+            System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
+            IntStream.range(0, proxies.length).parallel().forEach(i -> {
+                //for(int i=0; i < proxies.length; i++) {
+                linkedCellCount.incrementAndGet();
+                proxies[i].link();
+                //}
+            });
+            System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
+
+            //for (int i = 0; i < proxies.length; i++) {
+            //this.proxies[i].link();
+            //}
+            populateBarycenters();//For all the proxies, determine and set their barycenters
+            System.out.println("Finished populating");
+            //System.out.println("Finished getting indexes");
+            report();
+            final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
+            if(outputKML) {
+                outputKML();
+            }
+            JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.gz");
+            JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.gz");
+            double eightyTwoPercent = cellProxiesLength * .82;
+            saveCells(vertexGenerator, cellsGenerator, eightyTwoPercent);
+            if(databaseLoader != null) {
+                databaseLoader.stop();
+            }
+            try {
+                vertexGenerator.writeEndObject();
+                cellsGenerator.writeEndObject();
+                vertexGenerator.writeEndObject();
+                cellsGenerator.writeEndObject();
+            } catch (IOException e) {
+                e.printStackTrace();
+            } finally {
+                closeGenerator(vertexGenerator);
+                closeGenerator(cellsGenerator);
+            }
+            timer.cancel();
+            task.cancel();
+            System.out.println("Min was: " + minArea + " max was " + maxArea);
+            System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
         } finally {
-            closeGenerator(vertexGenerator);
-            closeGenerator(cellsGenerator);
+            if (Sphere.CELL_PROXY_INDICES.exists()) {
+                CELL_PROXY_INDICES.delete();
+            }
         }
-        timer.cancel();
-        task.cancel();
-        System.out.println("Min was: " + minArea + " max was " + maxArea);
-        System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
     }
 
 
