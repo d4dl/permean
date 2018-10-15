@@ -24,7 +24,7 @@
 - A user can view the history of all Jiyoba ever thrown, or created but not those of Jiyoba given.
 - When a user buys a field, 64 Jiyoba are created in it.
 
-Amber's idea: Create jiyoba for each element.... 
+Amber's idea: Create jiyoba for each element....
               Chapter 2 gets the balls back home.
               Chapter 3 get the elements into alignment.
 
@@ -36,3 +36,23 @@ Stewards are masters of the land.
 TODO:
 Make sure that queries for polygons or jiyoba return the correct quadrangles for fields spanning the prime meridian, equator and poles.
 Make sure entailment method for geo quadrangles also wraps properly... make some unit tests.
+
+
+Algoritmic Consensus
+  - The nodes that validate transactions are determined algorithmically.
+  - This has several advantages over traditional consensus mechanisms.
+    - No DoS attack vulnerability
+    - No 51% attack
+
+Byzantine fault tolerance
+In subverting cases, nodes could act strangely, which could make the results inaccurate. This problem
+can be presented by a classical problem called Byzantine generals proposed by Lamport et al. [66]: a
+group of Byzantine generals attacked an enemy’s camp. They decided to divide their army into N
+groups led by N generals, which would attack the enemy from different sites. If they attacked at the
+same time, they would win; otherwise, they would lose. Consequently, they had to make an agreement
+with each other about the attacking time by exchanging messages, and following the decision of the
+majority. Unfortunately, there were some traitors inside the general group, and they wanted to cheat
+other generals by telling different decisions to the others. Therefore, the results could be made
+inaccurate, which made some generals attack, while others did not, leading to failure. Lamport et al.
+[66] have proved that in order to tolerate f subverted generals, there should be at least another 2f + 1
+normal generals to accompany them.
