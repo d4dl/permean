@@ -6,6 +6,9 @@ import com.d4dl.permean.data.Vertex;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import net.openhft.chronicle.map.ChronicleMap;
 import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.apache.commons.io.FileUtils;
@@ -49,11 +52,10 @@ public class Sphere {
     private final AtomicInteger pentagonCount = new AtomicInteger(0);
     private final DatabaseLoader databaseLoader;
     private CellProxy[] proxies;
-    private int[] cellProxyIndices;
     private boolean iterating;
     private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
-    private ChronicleMap<Integer, Object> cellProxyIndexMap;
+    private Map<Integer, Object> cellProxyIndexMap;
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
@@ -104,11 +106,8 @@ public class Sphere {
             Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
             new File(shmDir).mkdirs();
             // cellProxyIndices = new int[cellProxiesLength * 6];
-            cellProxyIndexMap =
-                (ChronicleMap<Integer, Object>) ChronicleMapBuilder.of(Integer.class, Object.class)
-                    .entries(cellProxiesLength) //the maximum number of entries for the map
-                    .averageValue(averageValue)
-                    .createPersistedTo(CELL_PROXY_INDICES);
+            //createOffHeapProxyMap(averageValue);
+            createOnHeapProxyMap();
             double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
             double cellArea = sphereRadius / cellProxiesLength;
             System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
@@ -182,6 +181,18 @@ public class Sphere {
                 CELL_PROXY_INDICES.delete();
             }
         }
+    }
+
+    private void createOnHeapProxyMap() {
+        cellProxyIndexMap = new HashMap();
+    }
+
+
+    private void createOffHeapProxyMap(Object averageValue) throws IOException {
+        cellProxyIndexMap = ChronicleMapBuilder.of(Integer.class, Object.class)
+                .entries(cellProxiesLength) //the maximum number of entries for the map
+                .averageValue(averageValue)
+                .createPersistedTo(CELL_PROXY_INDICES);
     }
 
 
