@@ -5,9 +5,13 @@ import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.JsonGenerator;
+import com.sun.xml.internal.stream.writers.UTF8OutputStreamWriter;
 import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.OutputStreamWriter;
 import java.io.RandomAccessFile;
+import java.io.Writer;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -176,23 +180,21 @@ public class Sphere {
             //  count cells written every 10 seconds
             rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
 
-            JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.gz");
-            JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.gz");
+            Writer vertexWriter = initializeWriter("vertices", "vertices.json.gz");
+            Writer cellsWriter = initializeWriter("cellMap", "cellMap.json.gz");
             double eightyTwoPercent = cellProxiesLength * .82;
-            saveCells(vertexGenerator, cellsGenerator, eightyTwoPercent);
+            saveCells(vertexWriter, cellsWriter, eightyTwoPercent);
             if(databaseLoader != null) {
                 databaseLoader.stop();
             }
             try {
-                vertexGenerator.writeEndObject();
-                cellsGenerator.writeEndObject();
-                vertexGenerator.writeEndObject();
-                cellsGenerator.writeEndObject();
+                cellsWriter.write("\n  }\n}\n");
+                vertexWriter.write("\n  }\n}\n");
             } catch (IOException e) {
                 e.printStackTrace();
             } finally {
-                closeGenerator(vertexGenerator);
-                closeGenerator(cellsGenerator);
+                closeWriter(vertexWriter);
+                closeWriter(cellsWriter);
             }
             rateTimer.cancel();
             timer.cancel();
@@ -208,57 +210,66 @@ public class Sphere {
     }
 
 
-    private JsonGenerator initializeGenerator(String objectName, String fileName) {
-
-        JsonGenerator generator = null;
-
+    private Writer initializeWriter(String objectName, String fileName) {
         try {
            new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
-           RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
-           OutputStream out = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447));
+           //RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
+           Writer writer = new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(new File(this.CELLS_DIR, fileName)), 8192));
+           // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
 
-           JsonFactory jfactory = new JsonFactory();
-           generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
-           generator.useDefaultPrettyPrinter();
-           generator.writeStartObject();
-           generator.writeObjectFieldStart(objectName);
+           writer.write("{\n");
+           writer.write("  \"");writer.write(objectName);writer.write("\":{\n");
+           return writer;
         } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
-
-        return generator;
     }
 
-    private void writeCells(JsonGenerator cellsGenerator, String initiator, Cell cell) throws IOException {
-        cellsGenerator.writeObjectFieldStart(cell.getId());
-        cellsGenerator.writeObjectField("initiator", initiator);
-        cellsGenerator.writeFieldName("vertices");
+    private void writeCell(Writer writer, String initiator, Cell cell, boolean started) throws IOException {
+        if(started) {
+            writer.write(",\n");
+        }
+        writer.write("    ");writer.write('"');writer.write(cell.getId());writer.write("\":{\n");
+        writer.write("        \"initiator\":\"");writer.write(initiator);writer.write("\",\n");
+        writer.write("        \"");writer.write("vertices");writer.write("\":");
 
         List<Vertex> vertices = cell.getVertices();
-        cellsGenerator.writeStartArray();
+        writer.write('[');
+        boolean startedVertices = false;
         for (Vertex vertex : vertices) {
-            cellsGenerator.writeString(vertex.getId());
+          if(startedVertices) {
+              writer.write(',');
+          }
+          startedVertices = true;
+          writer.write("\"");writer.write(vertex.getId());writer.write("\"");
         }
-        cellsGenerator.writeEndArray();
-        cellsGenerator.writeEndObject();
+        writer.write("]\n");
+        writer.write("    }");
     }
 
-    private void closeGenerator(JsonGenerator cellsGenerator) {
-        if (cellsGenerator != null) {
+    private void closeWriter(Writer writer) {
+        if (writer != null) {
             try {
-                cellsGenerator.close();
+                writer.close();
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
     }
 
-    private void writeVertices(Cell cell, JsonGenerator generator)
+    private void writeVertices(Cell cell, Writer writer, boolean started)
         throws IOException {
         for (Vertex vertex : cell.getVertices()) {
-            generator.writeFieldName(vertex.getId());
-            generator.writeArray(new double[]{vertex.getLatitude().doubleValue(), vertex.getLongitude().doubleValue()}, 0, 2);
+            if (started) {
+                writer.write(",\n");
+            }
+            started = true;
+            writer.write("    \"");writer.write(vertex.getId());writer.write("\":");
+            writer.write('[');writer.write(vertex.getLatitude().toString());
+            writer.write(',');
+            writer.write(vertex.getLongitude().toString());
+            writer.write("]");
         }
     }
 
@@ -572,14 +583,18 @@ public class Sphere {
     }
 
 
-    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double eightyTwoPercent) {
+    public void saveCells(Writer vertexWriter, Writer cellsWriter, double eightyTwoPercent) {
         buildCellsFromProxies();
+        boolean startedVertices = false;
+        boolean startedCells = false;
         for (int f = 0; f < this.proxies.length; f++) {
             String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
             CellProxy cellProxy = this.proxies[f];
             try {
-                writeVertices(cellProxy.getCell(), vertexGenerator);
-                writeCells(cellsGenerator, initiator, cellProxy.getCell());
+                writeVertices(cellProxy.getCell(), vertexWriter, startedVertices);
+                startedVertices = true;
+                writeCell(cellsWriter, initiator, cellProxy.getCell(), startedCells);
+                startedCells = true;
 
                 if (databaseLoader != null) {
                     databaseLoader.add(cellProxy.getCell());
