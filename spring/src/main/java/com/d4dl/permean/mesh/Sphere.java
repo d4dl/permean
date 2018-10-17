@@ -6,6 +6,12 @@ import com.d4dl.permean.data.Vertex;
 import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
+import java.io.BufferedOutputStream;
+import java.io.RandomAccessFile;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,9 +50,9 @@ import static java.lang.StrictMath.*;
  * @constructor
  */
 public class Sphere {
-    // public static final File CELL_PROXY_INDICES = new File("/tmp/cellProxyIndexMaps", "cellProxyIndices");
-    public static final String shmDir = "/tmp/cellProxyIndexMaps";
-    public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
+    public static final File CELLS_DIR = new File("/tmp/cells");
+    // public static final String shmDir = "/Volumes/RAMDisk";
+    // public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
     private final int divisions;
     private final AtomicInteger pentagonCount = new AtomicInteger(0);
@@ -62,6 +68,7 @@ public class Sphere {
     private AtomicInteger savedCellCount = new AtomicInteger(0);
     private AtomicInteger savedVertexCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
+    private float cellWriteRate = 0;
 
     private final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
     private final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
@@ -104,14 +111,13 @@ public class Sphere {
             vertexCount = divisions * divisions * 20;
             proxies = new CellProxy[cellProxiesLength];
             Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
-            new File(shmDir).mkdirs();
+            //new File(shmDir).mkdirs();
             // cellProxyIndices = new int[cellProxiesLength * 6];
             //createOffHeapProxyMap(averageValue);
             createOnHeapProxyMap();
             double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
             double cellArea = sphereRadius / cellProxiesLength;
             System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
-            CELL_PROXY_INDICES.deleteOnExit();
 
             //List<HexCell> cellList = Arrays.asList(proxies);
             TimerTask task = new TimerTask() {
@@ -154,6 +160,22 @@ public class Sphere {
             if(outputKML) {
                 outputKML();
             }
+
+            final float[] lastCellCount = new float[1];
+            Timer rateTimer = new Timer();
+            TimerTask cellWriteRateTracker = new TimerTask() {
+                @Override
+                public void run() {
+                  int savedCells = savedCellCount.get();
+                  float cellsSavedSinceLast = savedCells - lastCellCount[0];
+                  lastCellCount[0] = savedCells;
+                  cellWriteRate = cellsSavedSinceLast / 1000;
+                }
+            };
+
+            //  count cells written every 10 seconds
+            rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
+
             JsonGenerator vertexGenerator = initializeGenerator("vertices", "vertices.json.gz");
             JsonGenerator cellsGenerator = initializeGenerator("cellMap", "cellMap.json.gz");
             double eightyTwoPercent = cellProxiesLength * .82;
@@ -172,14 +194,12 @@ public class Sphere {
                 closeGenerator(vertexGenerator);
                 closeGenerator(cellsGenerator);
             }
+            rateTimer.cancel();
             timer.cancel();
             task.cancel();
             //System.out.println("Min was: " + minArea + " max was " + maxArea);
             System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
         } finally {
-            if (Sphere.CELL_PROXY_INDICES.exists()) {
-                CELL_PROXY_INDICES.delete();
-            }
         }
     }
 
@@ -188,27 +208,20 @@ public class Sphere {
     }
 
 
-    private void createOffHeapProxyMap(Object averageValue) throws IOException {
-        cellProxyIndexMap = ChronicleMapBuilder.of(Integer.class, Object.class)
-                .entries(cellProxiesLength) //the maximum number of entries for the map
-                .averageValue(averageValue)
-                .createPersistedTo(CELL_PROXY_INDICES);
-    }
-
-
     private JsonGenerator initializeGenerator(String objectName, String fileName) {
 
         JsonGenerator generator = null;
 
         try {
-            File fileOut = new File(fileName);
+           new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
+           RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
+           OutputStream out = new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447));
 
-            OutputStream out = new GZIPOutputStream(new FileOutputStream(fileOut));
-            JsonFactory jfactory = new JsonFactory();
-            generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
-            generator.useDefaultPrettyPrinter();
-            generator.writeStartObject();
-            generator.writeObjectFieldStart(objectName);
+           JsonFactory jfactory = new JsonFactory();
+           generator = jfactory.createGenerator(out, JsonEncoding.UTF8);
+           generator.useDefaultPrettyPrinter();
+           generator.writeStartObject();
+           generator.writeObjectFieldStart(objectName);
         } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException(e);
@@ -217,8 +230,7 @@ public class Sphere {
         return generator;
     }
 
-    private void writeCells(JsonGenerator cellsGenerator, String initiator, Cell cell)
-        throws IOException {
+    private void writeCells(JsonGenerator cellsGenerator, String initiator, Cell cell) throws IOException {
         cellsGenerator.writeObjectFieldStart(cell.getId());
         cellsGenerator.writeObjectField("initiator", initiator);
         cellsGenerator.writeFieldName("vertices");
@@ -242,9 +254,9 @@ public class Sphere {
         }
     }
 
-    private void writeVertices(List<Vertex> allVertices, JsonGenerator generator)
+    private void writeVertices(Cell cell, JsonGenerator generator)
         throws IOException {
-        for (Vertex vertex : allVertices) {
+        for (Vertex vertex : cell.getVertices()) {
             generator.writeFieldName(vertex.getId());
             generator.writeArray(new double[]{vertex.getLatitude().doubleValue(), vertex.getLongitude().doubleValue()}, 0, 2);
         }
@@ -257,6 +269,7 @@ public class Sphere {
             report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
             //report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
             report("Saved", proxies.length, savedCellCount.get(), "Cells");
+            System.out.print(" Writing " + cellWriteRate + " cells per ms");
             System.out.print("\n");
         }
     }
@@ -456,7 +469,7 @@ public class Sphere {
         return s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2;
     }
 
-    private CellProxy get(int s, int x, int y) {
+    public CellProxy get(int s, int x, int y) {
         return this.proxies[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
     }
 
@@ -547,28 +560,35 @@ public class Sphere {
 
 
 
-    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double eightyTwoPercent) {
+    public void buildCellsFromProxies() {
         int n = this.proxies.length;
         IntStream parallel = IntStream.range(0, n).parallel();
-        //parallel.forEach(f -> {
-        for(int f=0; f < this.proxies.length; f++) {
-          String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent ;
+        parallel.forEach(f -> {
             CellProxy proxy = this.proxies[f];
-            List<Vertex> allVertices = proxy.populateSharedVertices(false);
-            Cell cell = new Cell(allVertices, divisions, 0, proxy.getBarycenter().getLat(), proxy.getBarycenter().getLng());
+            proxy.populateCell();
+        });
+        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
+
+    }
+
+
+    public void saveCells(JsonGenerator vertexGenerator, JsonGenerator cellsGenerator, double eightyTwoPercent) {
+        buildCellsFromProxies();
+        for (int f = 0; f < this.proxies.length; f++) {
+            String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
+            CellProxy cellProxy = this.proxies[f];
             try {
-                writeVertices(allVertices, vertexGenerator);
-                writeCells(cellsGenerator, initiator, cell);
+                writeVertices(cellProxy.getCell(), vertexGenerator);
+                writeCells(cellsGenerator, initiator, cellProxy.getCell());
 
                 if (databaseLoader != null) {
-                    databaseLoader.add(cell);
+                    databaseLoader.add(cellProxy.getCell());
                 }
                 savedCellCount.incrementAndGet();
             } catch (Exception e) {
                 throw new RuntimeException("Can't add", e);
             }
         }
-        //});
         //databaseLoader.completeVertices();
         report();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
@@ -582,7 +602,7 @@ public class Sphere {
         //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
         parallel.forEach(f -> {
             CellProxy proxy = this.proxies[f];
-            List<Vertex> verticesToSave = proxy.populateSharedVertices(true);
+            List<Vertex> verticesToSave = proxy.populateCell().getVertices();
             for (int i = 0; i < verticesToSave.size(); i++) {
                 minLat = min(minLat, verticesToSave.get(i).getLatitude().doubleValue());
                 maxLat = max(maxLat, verticesToSave.get(i).getLatitude().doubleValue());
