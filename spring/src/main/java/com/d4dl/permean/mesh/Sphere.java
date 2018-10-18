@@ -49,25 +49,6 @@ import org.jetbrains.annotations.NotNull;
  */
 public class Sphere {
 
-    private static final byte FIVE_VERTEX_CELL = 7;
-    private static final byte SIX_VERTEX_CELL = 8;
-
-    private static ByteBuffer SIX_VERTEX_CELL_BUFFER = ByteBuffer.allocateDirect(
-        Long.BYTES + Long.BYTES +// The cell uuid
-            Byte.BYTES +             // The initiator flag
-            Byte.BYTES +             // The vertex count
-            6 * (Long.BYTES + Long.BYTES)
-    );
-
-    private static ByteBuffer FIVE_VERTEX_CELL_BUFFER = ByteBuffer.allocateDirect(
-        Long.BYTES + Long.BYTES +// The cell uuid
-            Byte.BYTES +             // The initiator flag
-            Byte.BYTES +             // The vertex count
-            5 * (Long.BYTES + Long.BYTES)
-    );
-
-    public static final File CELLS_DIR = new File("/tmp/cells");
-    public static final BigDecimal SEVEN_DIGITS = BigDecimal.valueOf(100000);
     // public static final String shmDir = "/Volumes/RAMDisk";
     // public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
@@ -78,7 +59,6 @@ public class Sphere {
     private boolean iterating;
     private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
-    private Map<Integer, Object> cellProxyIndexMap;
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
@@ -87,8 +67,8 @@ public class Sphere {
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
     private float cellWriteRate = 0;
 
-    private final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
-    private final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
+    public final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
+    public final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
 
 
     private int cellProxiesLength = -1;
@@ -120,168 +100,111 @@ public class Sphere {
     }
 
     public void buildCells() throws IOException {
-        FileChannel cellsWriter = null;
-        try {
-            percentInstance.setMaximumFractionDigits(2);
 
-            //You want 100,000,000 cells so they will be around 2 square miles each.
-            cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
-            vertexCount = divisions * divisions * 20;
-            proxies = new CellProxy[cellProxiesLength];
-            Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
-            //new File(shmDir).mkdirs();
-            // cellProxyIndices = new int[cellProxiesLength * 6];
-            //createOffHeapProxyMap(averageValue);
-            createOnHeapProxyMap();
-            double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
-            double cellArea = sphereRadius / cellProxiesLength;
-            System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length) + " proxies.  Each one will average " + cellArea + " square miles.");
+        CellSerializer serializer = new CellSerializer(savedCellCount);
+        percentInstance.setMaximumFractionDigits(2);
 
-            //List<HexCell> cellList = Arrays.asList(proxies);
-            TimerTask task = new TimerTask() {
-                @Override
-                public void run() {
-                    percentInstance = NumberFormat.getPercentInstance();
-                    report();
-                }
-            };
+        //You want 100,000,000 cells so they will be around 2 square miles each.
+        cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
+        vertexCount = divisions * divisions * 20;
+        proxies = new CellProxy[cellProxiesLength];
+        Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
+        //new File(shmDir).mkdirs();
+        // cellProxyIndices = new int[cellProxiesLength * 6];
+        //createOffHeapProxyMap(averageValue);
+        double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
+        double cellArea = sphereRadius / cellProxiesLength;
+        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length)
+            + " proxies.  Each one will average " + cellArea + " square miles.");
 
-            //  task will be scheduled after 5 sec delay
-            timer.schedule(task, 1000, 1000);
+        //List<HexCell> cellList = Arrays.asList(proxies);
+        TimerTask task = new TimerTask() {
+            @Override
+            public void run() {
+                percentInstance = NumberFormat.getPercentInstance();
+                report();
+            }
+        };
 
-            Arrays.parallelSetAll(proxies, i -> {
-                createdProxyCount.incrementAndGet();
-                CellProxy hexCell = new CellProxy(this, i);
-                if (hexCell.isPentagon()) {
-                    pentagonCount.incrementAndGet();
-                }
-                return hexCell;
-            });
+        //  task will be scheduled after 5 sec delay
+        timer.schedule(task, 1000, 1000);
 
-            System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
-            IntStream.range(0, proxies.length).parallel().forEach(i -> {
-                //for(int i=0; i < proxies.length; i++) {
-                linkedCellCount.incrementAndGet();
-                proxies[i].link();
-                //}
-            });
-            System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
+        Arrays.parallelSetAll(proxies, i -> {
+            createdProxyCount.incrementAndGet();
+            CellProxy hexCell = new CellProxy(this, i);
+            if (hexCell.isPentagon()) {
+                pentagonCount.incrementAndGet();
+            }
+            return hexCell;
+        });
 
-            //for (int i = 0; i < proxies.length; i++) {
-            //this.proxies[i].link();
+        System.out.println(
+            "Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
+        IntStream.range(0, proxies.length).parallel().forEach(i -> {
+            //for(int i=0; i < proxies.length; i++) {
+            linkedCellCount.incrementAndGet();
+            proxies[i].link();
             //}
-            populateBarycenters();//For all the proxies, determine and set their barycenters
-            System.out.println("Finished populating");
-            //System.out.println("Finished getting indexes");
-            report();
-            final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-            if(outputKML) {
-                outputKML();
+        });
+        System.out.println(
+            "Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
+
+        //for (int i = 0; i < proxies.length; i++) {
+        //this.proxies[i].link();
+        //}
+        populateBarycenters();//For all the proxies, determine and set their barycenters
+        System.out.println("Finished populating");
+        //System.out.println("Finished getting indexes");
+        report();
+
+        final float[] lastCellCount = new float[1];
+        Timer rateTimer = new Timer();
+        TimerTask cellWriteRateTracker = new TimerTask() {
+            @Override
+            public void run() {
+                int savedCells = savedCellCount.get();
+                float cellsSavedSinceLast = savedCells - lastCellCount[0];
+                lastCellCount[0] = savedCells;
+                cellWriteRate = cellsSavedSinceLast / 1000;
             }
+        };
 
-            final float[] lastCellCount = new float[1];
-            Timer rateTimer = new Timer();
-            TimerTask cellWriteRateTracker = new TimerTask() {
-                @Override
-                public void run() {
-                  int savedCells = savedCellCount.get();
-                  float cellsSavedSinceLast = savedCells - lastCellCount[0];
-                  lastCellCount[0] = savedCells;
-                  cellWriteRate = cellsSavedSinceLast / 1000;
-                }
-            };
+        //  count cells written every 10 seconds
+        rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
 
-            //  count cells written every 10 seconds
-            rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
+        serializer.saveCells(proxies, vertexCount);
+        if (databaseLoader != null) {
+            databaseLoader.stop();
+        }
+        timer.cancel();
+        task.cancel();
+        //System.out.println("Min was: " + minArea + " max was " + maxArea);
+        System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
+        final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
+        CellSerializer deSerializer = new CellSerializer();
 
-            cellsWriter = initializeWriter("cellMap", "cellMap.json.zip");
-            double eightyTwoPercent = cellProxiesLength * .82;
-            saveCells(cellsWriter, eightyTwoPercent);
-            if(databaseLoader != null) {
-                databaseLoader.stop();
-            }
-            timer.cancel();
-            task.cancel();
-            //System.out.println("Min was: " + minArea + " max was " + maxArea);
-            System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
-        } finally {
-            closeWriter(cellsWriter);
+        if (outputKML) {
+            outputKML(deSerializer, deSerializer.readCells());
         }
     }
 
-    private void createOnHeapProxyMap() {
-        cellProxyIndexMap = new HashMap();
-    }
 
-
-    private FileChannel initializeWriter(String objectName, String fileName) {
-        try {
-           new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
-           //RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
-           // OutputStream writer = new BufferedOutputStream());
-           // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
-           return new FileOutputStream(new File(this.CELLS_DIR, fileName)).getChannel();
-           //return new FileOutputStream(new File(this.CELLS_DIR, fileName));
-        } catch (IOException e) {
-            e.printStackTrace();
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void closeWriter(FileChannel writer) {
-        if (writer != null) {
+    public void saveCells(FileChannel cellsWriter, double eightyTwoPercent) {
+        for (int f = 0; f < this.proxies.length; f++) {
+            String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
+            CellProxy cellProxy = this.proxies[f];
             try {
-                writer.close();
-            } catch (IOException e) {
-                e.printStackTrace();
+                if (databaseLoader != null) {
+                    databaseLoader.add(cellProxy.getCell());
+                }
+                savedCellCount.incrementAndGet();
+            } catch (Exception e) {
+                throw new RuntimeException("Can't add", e);
             }
         }
-    }
-
-    private void writeCell(FileChannel writer, String initiator, Cell cell) throws IOException {
-        long uuidLSB = cell.getId().getLeastSignificantBits();
-        long uuidMSB = cell.getId().getMostSignificantBits();
-        int vertexCount = cell.getVertices().size();
-        ByteBuffer buffer = vertexCount == 5 ? FIVE_VERTEX_CELL_BUFFER : SIX_VERTEX_CELL_BUFFER;
-
-        buffer.putLong(uuidLSB);
-        buffer.putLong(uuidMSB);
-        buffer.put((byte) (initiator.equals(initiatorKey18Percent) ? 1 : 0));//Then a byte 0 or 1 depending on which initiator it is
-        // A byte here less than 6 indicates its a list of vertices, more than six its a cell
-        buffer.put(vertexCount == 5 ? FIVE_VERTEX_CELL : SIX_VERTEX_CELL); //Then a byte indicating how many vertices the cell has
-
-        //Then the vertices a byte for the integer part before the decimal and 4 bytes for the fractional part
-        List<Vertex> vertices = cell.getVertices();
-        for (Vertex vertex : vertices) {
-            buffer.putLong(vertex.getId().getLeastSignificantBits());
-            buffer.putLong(vertex.getId().getMostSignificantBits());
-        }
-        buffer.flip();
-        writer.write(buffer);                                 //Each cell starts with a 128 bit uuid
-        buffer.flip();
-    }
-
-    private void writeVertices(CellProxy cellProxy, FileChannel writer) throws IOException {
-        List<Vertex> vertices = cellProxy.getCell().getVertices();
-        ByteBuffer buffer = ByteBuffer.allocateDirect(
-            (cellProxy.getOwnedVertexCount() * (Long.BYTES + Long.BYTES + (2 * Float.BYTES))) // The lat longs
-        );
-
-        for (Vertex vertex : vertices) {
-            //Don't write duplicates
-          if(vertex.getShouldPersist()) {
-              buffer.putLong(vertex.getId().getLeastSignificantBits());
-              buffer.putLong(vertex.getId().getMostSignificantBits());
-
-              BigDecimal latitude = vertex.getLatitude();
-              buffer.putFloat(latitude.floatValue());
-              BigDecimal longitude = vertex.getLongitude();
-              buffer.putFloat(longitude.floatValue());
-          }
-        }
-        buffer.flip();
-        writer.write(buffer);
-        buffer.flip();
+        //databaseLoader.completeVertices();
+        report();
+        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
 
     private void report() {
@@ -496,7 +419,7 @@ public class Sphere {
     }
 
 
-    private void outputKML() {
+    private void outputKML(CellSerializer serializer, Cell[] cells) {
         StringBuffer buffer = new StringBuffer();
         String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly", "transYellowPoly"};
         buffer.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
@@ -535,13 +458,13 @@ public class Sphere {
                 "      </PolyStyle>\n" +
                 "    </Style>\n"
         );
-        int limit = proxies.length;//20
+        int limit = cells.length;//20
         for(int i=0; i < limit; i++) {
             buffer.append("    <Placemark>\n" +
-                    "      <name>" + proxies[i].getName() + " " + proxies[i].getArea() + "</name>\n" +
+                    "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
                     //"      <styleUrl>#" + styles[i % styles.length] + "</styleUrl>\n" +
                     "      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
-                    getLineString(i) +
+                    getLineString(serializer, cells[i]) +
                     "    </Placemark>\n");
         }
         buffer.append("  </Document>\n" +
@@ -556,23 +479,23 @@ public class Sphere {
         }
     }
 
-    private String getLineString(int i) {
+    private String getLineString(CellSerializer serializer, Cell cell) {
                 return "      <LineString>\n" +
                 "        <tesselate>1</tesselate>\n" +
                 "        <altitudeMode>relativeToGround</altitudeMode>\n" +
                 "        <coordinates>\n" +
-                proxies[i].kmlString(2000) + "\n" +
+                serializer.kmlString(2000, cell) + "\n" +
                 "        </coordinates>\n" +
                 "      </LineString>\n";
     }
-    private String getPolygon(int i) {
+    private String getPolygon(CellSerializer serializer, Cell cell) {
         return "      <Polygon>\n" +
                 "      <outerBoundaryIs>\n" +
                 "      <LinearRing>\n" +
                 "        <tesselate>1</tesselate>\n" +
                 "        <altitudeMode>relativeToGround</altitudeMode>\n" +
                 "        <coordinates>\n" +
-                proxies[i].kmlString(2000) + "\n" +
+                serializer.kmlString(2000, cell) + "\n" +
                 "        </coordinates>\n" +
                 "      </LinearRing>\n" +
                 "      </outerBoundaryIs>\n" +
@@ -582,39 +505,6 @@ public class Sphere {
 
 
 
-    public void buildCellsFromProxies() {
-        int n = this.proxies.length;
-        IntStream parallel = IntStream.range(0, n).parallel();
-        parallel.forEach(f -> {
-            CellProxy proxy = this.proxies[f];
-            proxy.populateCell();
-        });
-        System.out.println("Finished building cells from proxies.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
-
-    }
-
-
-    public void saveCells(FileChannel cellsWriter, double eightyTwoPercent) {
-        buildCellsFromProxies();
-        for (int f = 0; f < this.proxies.length; f++) {
-            String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
-            CellProxy cellProxy = this.proxies[f];
-            try {
-                writeVertices(cellProxy, cellsWriter);
-                writeCell(cellsWriter, initiator, cellProxy.getCell());
-
-                if (databaseLoader != null) {
-                    databaseLoader.add(cellProxy.getCell());
-                }
-                savedCellCount.incrementAndGet();
-            } catch (Exception e) {
-                throw new RuntimeException("Can't add", e);
-            }
-        }
-        //databaseLoader.completeVertices();
-        report();
-        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
-    }
 
     @NotNull
     private IntStream saveVertices() {
@@ -640,14 +530,6 @@ public class Sphere {
 
     public void incrementBarycenterCount() {
         populatedBaryCenterCount.getAndIncrement();
-    }
-
-    public void setAdjacentCellIndices(Integer index, Integer[] adjacentCells) {
-        cellProxyIndexMap.put(index, adjacentCells);
-    }
-
-    public Integer[] getAdjacentCellIndices(Integer index) {
-      return (Integer[]) cellProxyIndexMap.get(index);
     }
 
     //public String toString() {

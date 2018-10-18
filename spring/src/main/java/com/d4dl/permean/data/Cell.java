@@ -43,6 +43,7 @@ public class Cell extends BasicEntity {
     public Cell(List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
         this(UUID.randomUUID(), vertices, parentSize, area, centerLatitude, centerLongitude);
     }
+
     public Cell(UUID id, List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
         setId(id);
         this.centerLatitude = centerLatitude;

@@ -199,18 +199,6 @@ public class CellProxy implements Serializable {
         return isPentagon;
     }
 
-    public String kmlString(int height) {
-        List<Vertex> vertices = populateCell().getVertices();
-        StringBuffer buff = new StringBuffer();
-        for (int i = 0; i < vertices.size(); i++) {
-            if(i > 0) {
-                buff.append("\n");
-            }
-            buff.append(vertices.get(i).kmlString(height));
-        }
-        buff.append(vertices.get(0).kmlString(height));//Make the first one also last.
-        return buff.toString();
-    }
 
 
     /**
