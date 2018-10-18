@@ -105,7 +105,7 @@ public class StatementWriter {
             try (PreparedStatement cellStmt = cellConnection.prepareStatement(CELL_INSERT); PreparedStatement joinStmt = cellConnection.prepareStatement(JOIN_INSERT)) {
                 for (Cell cell : cells) {
                     addVertexValues(joinStmt, cell);
-                    cellStmt.setString(1, cell.getId());
+                    cellStmt.setString(1, cell.getId().toString());
                     cellStmt.setDouble(2, cell.getArea());
                     cellStmt.setInt(3, parentSize);
                     cellStmt.setBigDecimal(4, cell.getCenterLatitude());
@@ -128,7 +128,7 @@ public class StatementWriter {
             if (!offlineMode && ((force && vertices.size() > 0) || vertices.size() > BATCH_SIZE)) {
                 try (PreparedStatement stmt = cellConnection.prepareStatement(VERTEX_INSERT)) {
                     for (Vertex vertex : vertices) {
-                        stmt.setString(1, vertex.getId());
+                        stmt.setString(1, vertex.getId().toString());
                         stmt.setBigDecimal(2, vertex.getLatitude());
                         stmt.setBigDecimal(3, vertex.getLongitude());
                         stmt.addBatch();
@@ -150,8 +150,8 @@ public class StatementWriter {
         try {
             for (int i = 0; i < cell.getVertices().size(); i++) {
                 Vertex vertex = cell.getVertices().get(i);
-                joinStmt.setString(1, cell.getId());
-                joinStmt.setString(2, vertex.getId());
+                joinStmt.setString(1, cell.getId().toString());
+                joinStmt.setString(2, vertex.getId().toString());
                 joinStmt.setInt(3, i);
                 joinStmt.addBatch();
             }

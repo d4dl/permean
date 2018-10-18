@@ -1,43 +1,37 @@
 package com.d4dl.permean.mesh;
 
+import static java.lang.StrictMath.PI;
+import static java.lang.StrictMath.acos;
+import static java.lang.StrictMath.max;
+import static java.lang.StrictMath.min;
+import static java.lang.StrictMath.sqrt;
+
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
-import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonFactory;
-import com.sun.xml.internal.stream.writers.UTF8OutputStreamWriter;
 import java.io.BufferedOutputStream;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.OutputStreamWriter;
-import java.io.RandomAccessFile;
-import java.io.Writer;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import net.openhft.chronicle.map.ChronicleMap;
-import net.openhft.chronicle.map.ChronicleMapBuilder;
-import org.apache.commons.io.FileUtils;
-import org.jetbrains.annotations.NotNull;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.io.RandomAccessFile;
+import java.math.BigDecimal;
+import java.nio.ByteBuffer;
+import java.nio.channels.Channel;
+import java.nio.channels.FileChannel;
 import java.text.NumberFormat;
 import java.util.Arrays;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import java.util.zip.GZIPOutputStream;
-
-import static java.lang.StrictMath.*;
+import org.apache.commons.io.FileUtils;
+import org.hibernate.result.Output;
+import org.jetbrains.annotations.NotNull;
 
 /**
  * Represents a sphere of proxies arranged in an interpolated icosahedral geodesic pattern.
@@ -54,7 +48,31 @@ import static java.lang.StrictMath.*;
  * @constructor
  */
 public class Sphere {
+
+    private static ByteBuffer SIX_VERTEX_BUFFER = ByteBuffer.allocate(
+        (6 * (Long.BYTES + Long.BYTES + (2 * Float.BYTES))) // The lat longs
+    );
+
+    private static ByteBuffer FIVE_VERTEX_BUFFER = ByteBuffer.allocate(
+        (5 * (Long.BYTES + Long.BYTES + (2 * Float.BYTES))) // The lat longs
+    );
+
+    private static ByteBuffer SIX_VERTEX_CELL_BUFFER = ByteBuffer.allocate(
+        Long.BYTES + Long.BYTES +// The cell uuid
+            Byte.BYTES +             // The initiator flag
+            Byte.BYTES +             // The vertex count
+            6 * (Long.BYTES + Long.BYTES)
+    );
+
+    private static ByteBuffer FIVE_VERTEX_CELL_BUFFER = ByteBuffer.allocate(
+        Long.BYTES + Long.BYTES +// The cell uuid
+            Byte.BYTES +             // The initiator flag
+            Byte.BYTES +             // The vertex count
+            5 * (Long.BYTES + Long.BYTES)
+    );
+
     public static final File CELLS_DIR = new File("/tmp/cells");
+    public static final BigDecimal SEVEN_DIGITS = BigDecimal.valueOf(100000);
     // public static final String shmDir = "/Volumes/RAMDisk";
     // public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
@@ -107,6 +125,8 @@ public class Sphere {
     }
 
     public void buildCells() throws IOException {
+        FileChannel vertexWriter = null;
+        FileChannel cellsWriter = null;
         try {
             percentInstance.setMaximumFractionDigits(2);
 
@@ -180,28 +200,20 @@ public class Sphere {
             //  count cells written every 10 seconds
             rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
 
-            Writer vertexWriter = initializeWriter("vertices", "vertices.json.gz");
-            Writer cellsWriter = initializeWriter("cellMap", "cellMap.json.gz");
+            vertexWriter = initializeWriter("vertices", "vertices.json");
+            cellsWriter = initializeWriter("cellMap", "cellMap.json");
             double eightyTwoPercent = cellProxiesLength * .82;
             saveCells(vertexWriter, cellsWriter, eightyTwoPercent);
             if(databaseLoader != null) {
                 databaseLoader.stop();
             }
-            try {
-                cellsWriter.write("\n  }\n}\n");
-                vertexWriter.write("\n  }\n}\n");
-            } catch (IOException e) {
-                e.printStackTrace();
-            } finally {
-                closeWriter(vertexWriter);
-                closeWriter(cellsWriter);
-            }
-            rateTimer.cancel();
             timer.cancel();
             task.cancel();
             //System.out.println("Min was: " + minArea + " max was " + maxArea);
             System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
         } finally {
+            closeWriter(vertexWriter);
+            closeWriter(cellsWriter);
         }
     }
 
@@ -210,45 +222,22 @@ public class Sphere {
     }
 
 
-    private Writer initializeWriter(String objectName, String fileName) {
+    private FileChannel initializeWriter(String objectName, String fileName) {
         try {
            new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
-           //RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
-           Writer writer = new OutputStreamWriter(new GZIPOutputStream(new FileOutputStream(new File(this.CELLS_DIR, fileName)), 8192));
+           RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
+           // OutputStream writer = new BufferedOutputStream());
            // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
-
-           writer.write("{\n");
-           writer.write("  \"");writer.write(objectName);writer.write("\":{\n");
-           return writer;
+           // return new FileOutputStream(new File(this.CELLS_DIR, fileName)).getChannel();
+           //return new FileOutputStream(new File(this.CELLS_DIR, fileName));
+            return raf.getChannel();
         } catch (IOException e) {
             e.printStackTrace();
             throw new RuntimeException(e);
         }
     }
 
-    private void writeCell(Writer writer, String initiator, Cell cell, boolean started) throws IOException {
-        if(started) {
-            writer.write(",\n");
-        }
-        writer.write("    ");writer.write('"');writer.write(cell.getId());writer.write("\":{\n");
-        writer.write("        \"initiator\":\"");writer.write(initiator);writer.write("\",\n");
-        writer.write("        \"");writer.write("vertices");writer.write("\":");
-
-        List<Vertex> vertices = cell.getVertices();
-        writer.write('[');
-        boolean startedVertices = false;
-        for (Vertex vertex : vertices) {
-          if(startedVertices) {
-              writer.write(',');
-          }
-          startedVertices = true;
-          writer.write("\"");writer.write(vertex.getId());writer.write("\"");
-        }
-        writer.write("]\n");
-        writer.write("    }");
-    }
-
-    private void closeWriter(Writer writer) {
+    private void closeWriter(FileChannel writer) {
         if (writer != null) {
             try {
                 writer.close();
@@ -258,19 +247,50 @@ public class Sphere {
         }
     }
 
-    private void writeVertices(Cell cell, Writer writer, boolean started)
-        throws IOException {
-        for (Vertex vertex : cell.getVertices()) {
-            if (started) {
-                writer.write(",\n");
-            }
-            started = true;
-            writer.write("    \"");writer.write(vertex.getId());writer.write("\":");
-            writer.write('[');writer.write(vertex.getLatitude().toString());
-            writer.write(',');
-            writer.write(vertex.getLongitude().toString());
-            writer.write("]");
+    private void writeCell(FileChannel writer, String initiator, Cell cell) throws IOException {
+        long uuidLSB = cell.getId().getLeastSignificantBits();
+        long uuidMSB = cell.getId().getMostSignificantBits();
+        int vertexCount = cell.getVertices().size();
+        ByteBuffer buffer = vertexCount == 5 ? FIVE_VERTEX_CELL_BUFFER : SIX_VERTEX_CELL_BUFFER;
+
+        buffer.putLong(uuidLSB);
+        buffer.putLong(uuidMSB);
+        buffer.put((byte) (initiator.equals(initiatorKey18Percent) ? 1 : 0));//Then a byte 0 or 1 depending on which initiator it is
+        buffer.put((byte) vertexCount);                      //Then a byte 5 or 6 indicating how many vertices the cell has
+
+        //Then the vertices a byte for the integer part before the decimal and 4 bytes for the fractional part
+        List<Vertex> vertices = cell.getVertices();
+        for (Vertex vertex : vertices) {
+            buffer.putLong(vertex.getId().getLeastSignificantBits());
+            buffer.putLong(vertex.getId().getMostSignificantBits());
         }
+        buffer.flip();
+        writer.write(buffer);                                 //Each cell starts with a 128 bit uuid
+        buffer.flip();
+    }
+
+    // DANGIT! You're WRITING DUPLICATE VERTICES but you already solved this problem.
+    private void writeVertices(Cell cell, FileChannel writer) throws IOException {
+        List<Vertex> vertices = cell.getVertices();
+        ByteBuffer buffer = cell.getVertices().size() == 5 ? FIVE_VERTEX_BUFFER : SIX_VERTEX_BUFFER;
+        for (Vertex vertex : vertices) {
+            buffer.putLong(vertex.getId().getLeastSignificantBits());
+            buffer.putLong(vertex.getId().getMostSignificantBits());
+
+            BigDecimal latitude = vertex.getLatitude();
+            // Its this big decimal stuff that's taking so long to write
+            buffer.putFloat(latitude.floatValue());
+
+            BigDecimal longitude = vertex.getLongitude();
+            buffer.putFloat(longitude.floatValue());
+            //buffer.put((byte)8);
+            //buffer.putInt(9);
+            //buffer.put((byte)8);
+            //buffer.putInt(9);
+        }
+        buffer.flip();
+        writer.write(buffer);
+        buffer.flip();
     }
 
     private void report() {
@@ -578,23 +598,19 @@ public class Sphere {
             CellProxy proxy = this.proxies[f];
             proxy.populateCell();
         });
-        System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
+        System.out.println("Finished building cells from proxies.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
 
     }
 
 
-    public void saveCells(Writer vertexWriter, Writer cellsWriter, double eightyTwoPercent) {
+    public void saveCells(FileChannel vertexWriter, FileChannel cellsWriter, double eightyTwoPercent) {
         buildCellsFromProxies();
-        boolean startedVertices = false;
-        boolean startedCells = false;
         for (int f = 0; f < this.proxies.length; f++) {
             String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
             CellProxy cellProxy = this.proxies[f];
             try {
-                writeVertices(cellProxy.getCell(), vertexWriter, startedVertices);
-                startedVertices = true;
-                writeCell(cellsWriter, initiator, cellProxy.getCell(), startedCells);
-                startedCells = true;
+                writeVertices(cellProxy.getCell(), vertexWriter);
+                writeCell(cellsWriter, initiator, cellProxy.getCell());
 
                 if (databaseLoader != null) {
                     databaseLoader.add(cellProxy.getCell());

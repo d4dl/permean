@@ -1,6 +1,7 @@
 package com.d4dl.permean.data;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.UUID;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -34,7 +35,7 @@ public class Vertex extends BasicEntity {
 
     }
 
-    public Vertex(String uuid, BigDecimal latitude, BigDecimal longitude) {
+    public Vertex(UUID uuid, BigDecimal latitude, BigDecimal longitude) {
         this.setId(uuid);
         this.latitude = latitude.abs().compareTo(tiny) <= 0 ? new BigDecimal(0, CONTEXT) : latitude;
         this.longitude = longitude.abs().compareTo(tiny) <= 0 ? new BigDecimal(0, CONTEXT) : longitude;
@@ -45,9 +46,5 @@ public class Vertex extends BasicEntity {
     public String kmlString(int height) {
         return "              " + longitude + "," +  latitude + "," + height;
         //return "φ: " + φ + ", λ: " + λ;
-    }
-
-    public String toString() {
-        return id;
     }
 }

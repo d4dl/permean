@@ -258,7 +258,7 @@ public class CellProxy implements Serializable {
             //the other two cells that share the vertex.
             int[] sharedVertexKey = new int[]{getIndex(), firstAdjacent.getIndex(), secondAdjacent.getIndex()};
             Arrays.sort(sharedVertexKey);
-            String stableUUID = createStableUUID(sharedVertexKey);
+            UUID stableUUID = createStableUUID(sharedVertexKey);
             //These three positions represent the triangle whose vertices are the three barycenters
             //that can be used to calculate the centroid of said triangle which is the vertex that
             //the three cells share.
@@ -266,8 +266,7 @@ public class CellProxy implements Serializable {
             Position secondPos = parentSphere.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
             Position thirdPos = parentSphere.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
             Position centroid = firstPos.centroid(index, secondPos, thirdPos);
-            String uuid = stableUUID;
-            Vertex sharedVertex = new Vertex(uuid, centroid.getLat(), centroid.getLng());
+            Vertex sharedVertex = new Vertex(stableUUID, centroid.getLat(), centroid.getLng());
             if(!onlyReturnLowestIndexVertexes || (this.getIndex() < firstAdjacent.getIndex() && this.getIndex() < secondAdjacent.getIndex())) {
                 addedVertices.add(sharedVertex);
             }
@@ -278,12 +277,12 @@ public class CellProxy implements Serializable {
 
 
     @NotNull
-    private String createStableUUID(int[] sharedVertexKey) {
+    private UUID createStableUUID(int[] sharedVertexKey) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(32 * 3);
         IntBuffer intBuffer = byteBuffer.asIntBuffer();
         intBuffer.put(sharedVertexKey);
 
-        return UUID.nameUUIDFromBytes(byteBuffer.array()).toString();
+        return UUID.nameUUIDFromBytes(byteBuffer.array());
     }
 
     public Position getBarycenter() {
