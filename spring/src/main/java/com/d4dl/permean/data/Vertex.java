@@ -24,6 +24,11 @@ public class Vertex extends BasicEntity {
 
     public static final MathContext CONTEXT = new MathContext(10, RoundingMode.HALF_EVEN);
     public static BigDecimal tiny = new BigDecimal(0.00000000000001, CONTEXT);
+
+    @Transient
+    @JsonIgnore
+    private boolean shouldPersist;
+
     BigDecimal latitude;
     BigDecimal longitude;
 
@@ -46,5 +51,17 @@ public class Vertex extends BasicEntity {
     public String kmlString(int height) {
         return "              " + longitude + "," +  latitude + "," + height;
         //return "φ: " + φ + ", λ: " + λ;
+    }
+
+    /**
+     * To avoid persisting vertices more than once some cells "own" a vertex so it can be
+     * determined when the vertex, which is shared with other cells, should be persisted.
+     */
+    public void setShouldPersist() {
+        this.shouldPersist = true;
+    }
+
+    public boolean getShouldPersist() {
+      return shouldPersist;
     }
 }

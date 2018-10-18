@@ -23,6 +23,7 @@ public class CellProxy implements Serializable {
     private Position barycenter;
     private String name;
     private Cell cell;
+    private short ownedVertexCount;
 
     CellProxy(Sphere parentSphere, int index) {
         this.parentSphere = parentSphere;
@@ -242,14 +243,16 @@ public class CellProxy implements Serializable {
      */
     public Cell populateCell() {
       if (this.cell == null) {
-          this.cell = new Cell(populateVertices(false), parentSphere.getDivisions(), 0, getBarycenter().getLat(), getBarycenter().getLng());
+          UUID id = UUID.randomUUID();
+          this.cell = new Cell(id, populateVertices(id), parentSphere.getDivisions(), 0, getBarycenter().getLat(), getBarycenter().getLng());
       }
       return this.cell;
     }
 
-    public List<Vertex> populateVertices(boolean onlyReturnLowestIndexVertexes) {
+    public List<Vertex> populateVertices(UUID owningCellId) {
 
         List<Vertex> addedVertices = new ArrayList();
+        ownedVertexCount = 0;
         for (int i = 0; i < adjacentCells.length; i++) {
             CellProxy firstAdjacent = getAdjacent(i);
             CellProxy secondAdjacent = getAdjacent(i == adjacentCells.length ? 0 : i + 1);
@@ -266,10 +269,14 @@ public class CellProxy implements Serializable {
             Position secondPos = parentSphere.getCellProxies()[firstAdjacent.getIndex()].getBarycenter();
             Position thirdPos = parentSphere.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
             Position centroid = firstPos.centroid(index, secondPos, thirdPos);
+            // A vertex with the same id may be created more than once.  But it shouldn't be persisted more than once.
             Vertex sharedVertex = new Vertex(stableUUID, centroid.getLat(), centroid.getLng());
-            if(!onlyReturnLowestIndexVertexes || (this.getIndex() < firstAdjacent.getIndex() && this.getIndex() < secondAdjacent.getIndex())) {
-                addedVertices.add(sharedVertex);
+            boolean isPersistenceOwner = this.getIndex() < firstAdjacent.getIndex() && this.getIndex() < secondAdjacent .getIndex();
+            if (isPersistenceOwner) {
+                ownedVertexCount++;
+                sharedVertex.setShouldPersist();
             }
+            addedVertices.add(sharedVertex);
         }
 
         return addedVertices;
@@ -320,4 +327,7 @@ public class CellProxy implements Serializable {
       return cell;
     }
 
+    public short getOwnedVertexCount() {
+        return ownedVertexCount;
+    }
 }
