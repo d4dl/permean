@@ -225,6 +225,7 @@ public class Sphere {
             report("Saved", cellCount, savedCellCount.get(), "Cells");
             System.out.print(" Writing " + vertexWriteRate + " vertexes per ms.");
             System.out.print(" Writing " + cellWriteRate + " cells per ms.");
+            System.out.print(cellStack.size() + " cells in the cell stack.");
             System.out.print("\n");
         }
     }
