@@ -108,8 +108,8 @@ public class StatementWriter {
                     cellStmt.setString(1, cell.getId().toString());
                     cellStmt.setDouble(2, cell.getArea());
                     cellStmt.setInt(3, parentSize);
-                    cellStmt.setBigDecimal(4, cell.getCenterLatitude());
-                    cellStmt.setBigDecimal(5, cell.getCenterLongitude());
+                    cellStmt.setFloat(4, cell.getCenterLatitude());
+                    cellStmt.setFloat(5, cell.getCenterLongitude());
                     cellStmt.addBatch();
                 }
                 cellStmt.executeLargeBatch();
@@ -129,8 +129,8 @@ public class StatementWriter {
                 try (PreparedStatement stmt = cellConnection.prepareStatement(VERTEX_INSERT)) {
                     for (Vertex vertex : vertices) {
                         stmt.setString(1, vertex.getId().toString());
-                        stmt.setBigDecimal(2, vertex.getLatitude());
-                        stmt.setBigDecimal(3, vertex.getLongitude());
+                        stmt.setFloat(2, vertex.getLatitude());
+                        stmt.setFloat(3, vertex.getLongitude());
                         stmt.addBatch();
                     }
                     stmt.executeLargeBatch();

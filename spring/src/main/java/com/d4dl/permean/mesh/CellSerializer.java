@@ -5,20 +5,19 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import java.io.BufferedInputStream;
+import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -44,10 +43,14 @@ public class CellSerializer {
   );
 
   public static final File CELLS_DIR = new File("/tmp/cells");
+  private AtomicInteger savedVertexCount;
   private AtomicInteger savedCellCount;
+  private AtomicInteger builtProxyCount;
 
-  public CellSerializer(AtomicInteger savedCellCount) {
+  public CellSerializer(AtomicInteger savedCellCount, AtomicInteger savedVertexCount, AtomicInteger builtProxyCount) {
     this.savedCellCount = savedCellCount;
+    this.savedVertexCount = savedVertexCount;
+    this.builtProxyCount = builtProxyCount;
   }
 
   public CellSerializer() {
@@ -78,8 +81,9 @@ public class CellSerializer {
       buildCellsFromProxies(proxies);
       for (int f = 0; f < proxies.length; f++) {
         CellProxy cellProxy = proxies[f];
+        //cellProxy.populateCell();
         try {
-          writeVertices(cellProxy, cellsWriter);
+          writeVertices(cellProxy, cellsWriter, savedVertexCount);
         } catch (Exception e) {
           throw new RuntimeException("Can't add", e);
         }
@@ -127,7 +131,7 @@ public class CellSerializer {
     buffer.flip();
   }
 
-  private void writeVertices(CellProxy cellProxy, FileChannel writer) throws IOException {
+  private void writeVertices(CellProxy cellProxy, FileChannel writer, AtomicInteger savedVertexCount) throws IOException {
     List<Vertex> vertices = cellProxy.getCell().getVertices();
     ByteBuffer buffer = ByteBuffer.allocateDirect(
         (cellProxy.getOwnedVertexCount() * (Long.BYTES + Long.BYTES + (2 * Float.BYTES))) // The lat longs
@@ -139,10 +143,11 @@ public class CellSerializer {
         buffer.putLong(vertex.getId().getMostSignificantBits());
         buffer.putLong(vertex.getId().getLeastSignificantBits());
 
-        BigDecimal latitude = vertex.getLatitude();
-        buffer.putFloat(latitude.floatValue());
-        BigDecimal longitude = vertex.getLongitude();
-        buffer.putFloat(longitude.floatValue());
+        float latitude = vertex.getLatitude();
+        buffer.putFloat(latitude);
+        float longitude = vertex.getLongitude();
+        buffer.putFloat(longitude);
+        savedVertexCount.incrementAndGet();
       }
     }
     buffer.flip();
@@ -201,9 +206,11 @@ public class CellSerializer {
 
 
   public void buildCellsFromProxies(CellProxy[] proxies) {
+    System.out.println("Building cells from proxies.");
     int n = proxies.length;
     IntStream parallel = IntStream.range(0, n).parallel();
     parallel.forEach(f -> {
+      builtProxyCount.incrementAndGet();
       CellProxy proxy = proxies[f];
       proxy.populateCell();
     });
@@ -226,8 +233,8 @@ public class CellSerializer {
         long vertexUuidMSB = in.readLong();
         long vertexUuidLSB = in.readLong();
         UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
-        BigDecimal latitude = BigDecimal.valueOf(in.readFloat());
-        BigDecimal longitude = BigDecimal.valueOf(in.readFloat());
+        float latitude = in.readFloat();
+        float longitude = in.readFloat();
         vertexMap.put(vertexId, new Vertex(vertexId, latitude, longitude));
       }
 
@@ -245,7 +252,7 @@ public class CellSerializer {
           UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
           vertices[i] = vertexMap.get(vertexId);
         }
-        cells[c] = new Cell(cellId, Arrays.asList(vertices), 0, 0, null, null);
+        cells[c] = new Cell(cellId, Arrays.asList(vertices), 0, 0, 0, 0);
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -259,4 +266,95 @@ public class CellSerializer {
 
     return cells;
   }
+
+
+  public void outputKML(CellSerializer serializer, Cell[] cells) throws IOException {
+    String fileName = "~/rings.kml";
+    File file = new File(fileName);
+    System.out.println("Writing to file: " + file.getAbsolutePath());
+    BufferedWriter writer = null;
+    try {
+      writer = new BufferedWriter(new FileWriter(file));
+      String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly",
+          "transYellowPoly"};
+      writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
+          "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
+          "  <Document>\n" +
+          "    <Style id=\"transRedPoly\">\n" +
+          "      <LineStyle>\n" +
+          "        <color>ff0000ff</color>\n" +
+          "      </LineStyle>\n" +
+          "      <PolyStyle>\n" +
+          "        <color>55ff0000</color>\n" +
+          "      </PolyStyle>\n" +
+          "    </Style>\n" +
+          "    <Style id=\"transYellowPoly\">\n" +
+          "      <LineStyle>\n" +
+          "        <color>7f00ffff</color>\n" +
+          "      </LineStyle>\n" +
+          "      <PolyStyle>\n" +
+          "        <color>5500ff00</color>\n" +
+          "      </PolyStyle>\n" +
+          "    </Style>\n" +
+          "    <Style id=\"transBluePoly\">\n" +
+          "      <LineStyle>\n" +
+          "        <color>7dffbb00</color>\n" +
+          "      </LineStyle>\n" +
+          "      <PolyStyle>\n" +
+          "        <color>550000ff</color>\n" +
+          "      </PolyStyle>\n" +
+          "    </Style>\n" +
+          "    <Style id=\"transGreenPoly\">\n" +
+          "      <LineStyle>\n" +
+          "        <color>7f00ff00</color>\n" +
+          "      </LineStyle>\n" +
+          "      <PolyStyle>\n" +
+          "        <color>5500ffff</color>\n" +
+          "      </PolyStyle>\n" +
+          "    </Style>\n"
+      );
+      int limit = cells.length;//20
+      for (int i = 0; i < limit; i++) {
+        writer.write("    <Placemark>\n" +
+            "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
+            //"      <styleUrl>#" + styles[i % styles.length] + "</styleUrl>\n" +
+            "      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
+            getLineString(serializer, cells[i]) +
+            "    </Placemark>\n");
+      }
+      writer.write("  </Document>\n" +
+          "</kml>");
+      System.out.println("Wrote to file: " + file.getAbsolutePath());
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      writer.close();
+    }
+  }
+
+
+  private String getLineString(CellSerializer serializer, Cell cell) {
+    return "      <LineString>\n" +
+        "        <tesselate>1</tesselate>\n" +
+        "        <altitudeMode>relativeToGround</altitudeMode>\n" +
+        "        <coordinates>\n" +
+        serializer.kmlString(2000, cell) + "\n" +
+        "        </coordinates>\n" +
+        "      </LineString>\n";
+  }
+  private String getPolygon(CellSerializer serializer, Cell cell) {
+    return "      <Polygon>\n" +
+        "      <outerBoundaryIs>\n" +
+        "      <LinearRing>\n" +
+        "        <tesselate>1</tesselate>\n" +
+        "        <altitudeMode>relativeToGround</altitudeMode>\n" +
+        "        <coordinates>\n" +
+        serializer.kmlString(2000, cell) + "\n" +
+        "        </coordinates>\n" +
+        "      </LinearRing>\n" +
+        "      </outerBoundaryIs>\n" +
+        "      </Polygon>\n";
+  }
+
+
 }

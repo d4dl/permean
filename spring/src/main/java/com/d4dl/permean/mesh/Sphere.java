@@ -6,31 +6,17 @@ import static java.lang.StrictMath.max;
 import static java.lang.StrictMath.min;
 import static java.lang.StrictMath.sqrt;
 
-import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
-import java.io.BufferedOutputStream;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.RandomAccessFile;
-import java.math.BigDecimal;
-import java.nio.ByteBuffer;
-import java.nio.channels.Channel;
-import java.nio.channels.FileChannel;
 import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import org.apache.commons.io.FileUtils;
-import org.hibernate.result.Output;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -62,10 +48,12 @@ public class Sphere {
 
     private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
+    private AtomicInteger builtProxyCount = new AtomicInteger(0);
     private AtomicInteger savedCellCount = new AtomicInteger(0);
     private AtomicInteger savedVertexCount = new AtomicInteger(0);
     private AtomicInteger linkedCellCount = new AtomicInteger(0);
     private float cellWriteRate = 0;
+    private float vertexWriteRate = 0;
 
     public final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
     public final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
@@ -101,7 +89,7 @@ public class Sphere {
 
     public void buildCells() throws IOException {
 
-        CellSerializer serializer = new CellSerializer(savedCellCount);
+        CellSerializer serializer = new CellSerializer(savedCellCount, savedVertexCount, builtProxyCount);
         percentInstance.setMaximumFractionDigits(2);
 
         //You want 100,000,000 cells so they will be around 2 square miles each.
@@ -138,16 +126,14 @@ public class Sphere {
             return hexCell;
         });
 
-        System.out.println(
-            "Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
+        System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
         IntStream.range(0, proxies.length).parallel().forEach(i -> {
             //for(int i=0; i < proxies.length; i++) {
             linkedCellCount.incrementAndGet();
             proxies[i].link();
             //}
         });
-        System.out.println(
-            "Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
+        System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
 
         //for (int i = 0; i < proxies.length; i++) {
         //this.proxies[i].link();
@@ -157,20 +143,25 @@ public class Sphere {
         //System.out.println("Finished getting indexes");
         report();
 
-        final float[] lastCellCount = new float[1];
+        final float[] lastWriteCounts = new float[2];
         Timer rateTimer = new Timer();
-        TimerTask cellWriteRateTracker = new TimerTask() {
+        TimerTask writeRateTracker = new TimerTask() {
             @Override
             public void run() {
                 int savedCells = savedCellCount.get();
-                float cellsSavedSinceLast = savedCells - lastCellCount[0];
-                lastCellCount[0] = savedCells;
+                float cellsSavedSinceLast = savedCells - lastWriteCounts[0];
                 cellWriteRate = cellsSavedSinceLast / 1000;
+                lastWriteCounts[0] = savedCells;
+
+                int savedVertexes = savedVertexCount.get();
+                float vertexesSavedSinceLast = savedVertexes - lastWriteCounts[1];
+                lastWriteCounts[1] = savedVertexes;
+                vertexWriteRate = vertexesSavedSinceLast / 1000;
             }
         };
 
         //  count cells written every 10 seconds
-        rateTimer.schedule(cellWriteRateTracker, new Date(), 1000);
+        rateTimer.schedule(writeRateTracker, new Date(), 1000);
 
         serializer.saveCells(proxies, vertexCount);
         if (databaseLoader != null) {
@@ -184,12 +175,12 @@ public class Sphere {
         CellSerializer deSerializer = new CellSerializer();
 
         if (outputKML) {
-            outputKML(deSerializer, deSerializer.readCells());
+            new CellSerializer().outputKML(deSerializer, deSerializer.readCells());
         }
     }
 
 
-    public void saveCells(FileChannel cellsWriter, double eightyTwoPercent) {
+    public void saveCells(double eightyTwoPercent) {
         for (int f = 0; f < this.proxies.length; f++) {
             String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
             CellProxy cellProxy = this.proxies[f];
@@ -212,9 +203,11 @@ public class Sphere {
             report("Created", proxies.length, createdProxyCount.get(), "CellProxies");
             report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
             report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
-            //report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
+            report("Built", proxies.length, builtProxyCount.get(), "CellProxies");
+            report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
             report("Saved", proxies.length, savedCellCount.get(), "Cells");
-            System.out.print(" Writing " + cellWriteRate + " cells per ms");
+            System.out.print(" Writing " + vertexWriteRate + " vertexes per ms.");
+            System.out.print(" Writing " + cellWriteRate + " cells per ms.");
             System.out.print("\n");
         }
     }
@@ -419,90 +412,6 @@ public class Sphere {
     }
 
 
-    private void outputKML(CellSerializer serializer, Cell[] cells) {
-        StringBuffer buffer = new StringBuffer();
-        String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly", "transYellowPoly"};
-        buffer.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-                "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
-                "  <Document>\n" +
-                "    <Style id=\"transRedPoly\">\n" +
-                "      <LineStyle>\n" +
-                "        <color>ff0000ff</color>\n" +
-                "      </LineStyle>\n" +
-                "      <PolyStyle>\n" +
-                "        <color>55ff0000</color>\n" +
-                "      </PolyStyle>\n" +
-                "    </Style>\n" +
-                "    <Style id=\"transYellowPoly\">\n" +
-                "      <LineStyle>\n" +
-                "        <color>7f00ffff</color>\n" +
-                "      </LineStyle>\n" +
-                "      <PolyStyle>\n" +
-                "        <color>5500ff00</color>\n" +
-                "      </PolyStyle>\n" +
-                "    </Style>\n" +
-                "    <Style id=\"transBluePoly\">\n" +
-                "      <LineStyle>\n" +
-                "        <color>7dffbb00</color>\n" +
-                "      </LineStyle>\n" +
-                "      <PolyStyle>\n" +
-                "        <color>550000ff</color>\n" +
-                "      </PolyStyle>\n" +
-                "    </Style>\n" +
-                "    <Style id=\"transGreenPoly\">\n" +
-                "      <LineStyle>\n" +
-                "        <color>7f00ff00</color>\n" +
-                "      </LineStyle>\n" +
-                "      <PolyStyle>\n" +
-                "        <color>5500ffff</color>\n" +
-                "      </PolyStyle>\n" +
-                "    </Style>\n"
-        );
-        int limit = cells.length;//20
-        for(int i=0; i < limit; i++) {
-            buffer.append("    <Placemark>\n" +
-                    "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
-                    //"      <styleUrl>#" + styles[i % styles.length] + "</styleUrl>\n" +
-                    "      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
-                    getLineString(serializer, cells[i]) +
-                    "    </Placemark>\n");
-        }
-        buffer.append("  </Document>\n" +
-                "</kml>");
-        String fileName = "~/rings.kml";
-        File file = new File(fileName);
-        try {
-            System.out.println("Writing to file: " + file.getAbsolutePath());
-            FileUtils.writeStringToFile(file, buffer.toString());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private String getLineString(CellSerializer serializer, Cell cell) {
-                return "      <LineString>\n" +
-                "        <tesselate>1</tesselate>\n" +
-                "        <altitudeMode>relativeToGround</altitudeMode>\n" +
-                "        <coordinates>\n" +
-                serializer.kmlString(2000, cell) + "\n" +
-                "        </coordinates>\n" +
-                "      </LineString>\n";
-    }
-    private String getPolygon(CellSerializer serializer, Cell cell) {
-        return "      <Polygon>\n" +
-                "      <outerBoundaryIs>\n" +
-                "      <LinearRing>\n" +
-                "        <tesselate>1</tesselate>\n" +
-                "        <altitudeMode>relativeToGround</altitudeMode>\n" +
-                "        <coordinates>\n" +
-                serializer.kmlString(2000, cell) + "\n" +
-                "        </coordinates>\n" +
-                "      </LinearRing>\n" +
-                "      </outerBoundaryIs>\n" +
-                "      </Polygon>\n";
-    }
-
-
 
 
 
@@ -516,10 +425,10 @@ public class Sphere {
             CellProxy proxy = this.proxies[f];
             List<Vertex> verticesToSave = proxy.populateCell().getVertices();
             for (int i = 0; i < verticesToSave.size(); i++) {
-                minLat = min(minLat, verticesToSave.get(i).getLatitude().doubleValue());
-                maxLat = max(maxLat, verticesToSave.get(i).getLatitude().doubleValue());
-                minLng = min(minLng, verticesToSave.get(i).getLongitude().doubleValue());
-                maxLng = max(maxLng, verticesToSave.get(i).getLongitude().doubleValue());
+                minLat = min(minLat, verticesToSave.get(i).getLatitude());
+                maxLat = max(maxLat, verticesToSave.get(i).getLatitude());
+                minLng = min(minLng, verticesToSave.get(i).getLongitude());
+                maxLng = max(maxLng, verticesToSave.get(i).getLongitude());
                 databaseLoader.add(verticesToSave.get(i));
                 savedVertexCount.incrementAndGet();
             }

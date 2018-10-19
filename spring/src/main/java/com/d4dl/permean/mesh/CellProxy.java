@@ -232,7 +232,7 @@ public class CellProxy implements Serializable {
     public Cell populateCell() {
       if (this.cell == null) {
           UUID id = UUID.randomUUID();
-          this.cell = new Cell(id, populateVertices(id), parentSphere.getDivisions(), 0, getBarycenter().getLat(), getBarycenter().getLng());
+          this.cell = new Cell(id, populateVertices(id), parentSphere.getDivisions(), 0, (float)getBarycenter().getLat(), (float)getBarycenter().getLng());
       }
       return this.cell;
     }
@@ -258,7 +258,7 @@ public class CellProxy implements Serializable {
             Position thirdPos = parentSphere.getCellProxies()[secondAdjacent.getIndex()].getBarycenter();
             Position centroid = firstPos.centroid(index, secondPos, thirdPos);
             // A vertex with the same id may be created more than once.  But it shouldn't be persisted more than once.
-            Vertex sharedVertex = new Vertex(stableUUID, centroid.getLat(), centroid.getLng());
+            Vertex sharedVertex = new Vertex(stableUUID, (float)centroid.getLat(), (float)centroid.getLng());
             boolean isPersistenceOwner = this.getIndex() < firstAdjacent.getIndex() && this.getIndex() < secondAdjacent .getIndex();
             if (isPersistenceOwner) {
                 ownedVertexCount++;

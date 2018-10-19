@@ -4,7 +4,6 @@ import com.d4dl.permean.data.Vertex;
 import com.d4dl.permean.mesh.positiontree.LatComparable;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 
 import static java.lang.StrictMath.*;
 
@@ -147,15 +146,15 @@ public class Position implements Serializable, LatComparable {
         return φ;
     }
 
-    public BigDecimal getLat() {
+    public double getLat() {
         //return 90 * (cos(φ) / π) * (φ < 0 ? -1 : 1);
         //return φ * UNIT;
         //return sin(φ) * 90;
-        return new BigDecimal(90 - (90 - (φ * LAT_CONVERT)), Vertex.CONTEXT);
+        return 90 - (90 - (φ * LAT_CONVERT));
     }
 
-    public BigDecimal getLng() {
-        return new BigDecimal(180 * (λ / PI), Vertex.CONTEXT);
+    public double getLng() {
+        return 180 * (λ / PI);
     }
 
 
