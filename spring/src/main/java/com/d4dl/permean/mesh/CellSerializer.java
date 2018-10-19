@@ -12,6 +12,7 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Arrays;
@@ -27,6 +28,8 @@ public class CellSerializer {
   private static final byte FIVE_VERTEX_CELL = 5;
   private static final byte SIX_VERTEX_CELL = 6;
   private static final String FILE_NAME = "cellMap.json";
+  public static final int VERTEX_BYTE_SIZE = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
+  private static final int VERTEX_AND_CELL_COUNT_SIZE = 8;
 
   private static ByteBuffer SIX_VERTEX_CELL_BUFFER = ByteBuffer.allocateDirect(
       Long.BYTES + Long.BYTES +// The cell uuid
@@ -43,72 +46,58 @@ public class CellSerializer {
   );
 
   public static final File CELLS_DIR = new File("/tmp/cells");
+  private int vertexFileOffset;
   private AtomicInteger savedVertexCount;
   private AtomicInteger savedCellCount;
   private AtomicInteger builtProxyCount;
+  FileChannel cellWriter = null;
+  FileChannel vertexWriter = null;
+  double eightyTwoPercent;
 
-  public CellSerializer(AtomicInteger savedCellCount, AtomicInteger savedVertexCount, AtomicInteger builtProxyCount) {
+  public CellSerializer(int totalCellCount, int totalVertexCount, AtomicInteger savedCellCount, AtomicInteger savedVertexCount, AtomicInteger builtProxyCount) {
     this.savedCellCount = savedCellCount;
     this.savedVertexCount = savedVertexCount;
     this.builtProxyCount = builtProxyCount;
+    this.vertexFileOffset = totalVertexCount * VERTEX_BYTE_SIZE + VERTEX_AND_CELL_COUNT_SIZE;
+    this.eightyTwoPercent = totalCellCount * .82;
+    initializeWriters();
+    writeCounts(totalCellCount, totalVertexCount);
+
   }
 
   public CellSerializer() {
 
   }
 
-
-  private void writeCounts(int cellCount, int vertexCount, FileChannel cellsWriter) throws IOException {
-    ByteBuffer buffer = ByteBuffer.allocateDirect(
-        Integer.BYTES + Integer.BYTES
-    );
-    // Start with the number of cells
-    buffer.putInt(cellCount);
-    // Then the number of vertices
-    buffer.putInt(vertexCount);
-
-    buffer.flip();
-    cellsWriter.write(buffer);
-  }
-
-  public void saveCells(CellProxy[] proxies, int vertexCount) {
-    FileChannel cellsWriter = null;
+  private void writeCounts(int cellCount, int vertexCount) {
     try {
-      cellsWriter = initializeWriter();
-      writeCounts(proxies.length, vertexCount, cellsWriter);
+      ByteBuffer buffer = ByteBuffer.allocateDirect(
+          Integer.BYTES + Integer.BYTES
+      );
+      // Start with the number of cells
+      buffer.putInt(cellCount);
+      // Then the number of vertices
+      buffer.putInt(vertexCount);
 
-      double eightyTwoPercent = proxies.length * .82;
-      buildCellsFromProxies(proxies);
-      for (int f = 0; f < proxies.length; f++) {
-        CellProxy cellProxy = proxies[f];
-        //cellProxy.populateCell();
-        try {
-          writeVertices(cellProxy, cellsWriter, savedVertexCount);
-        } catch (Exception e) {
-          throw new RuntimeException("Can't add", e);
-        }
-      }
-
-      for (int f = 0; f < proxies.length; f++) {
-        String initiator = f > eightyTwoPercent ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
-        CellProxy cellProxy = proxies[f];
-        try {
-          writeCell(cellsWriter, initiator, cellProxy.getCell());
-          savedCellCount.incrementAndGet();
-        } catch (Exception e) {
-          throw new RuntimeException("Can't add", e);
-        }
-      }
-      //databaseLoader.completeVertices();
-      System.out.println("Finished saving cells.");
-    } catch (IOException e) {
-      e.printStackTrace();
-    } finally {
-      closeWriter(cellsWriter);
+      buffer.flip();
+      vertexWriter.write(buffer);
+    } catch (Exception e) {
+      throw new RuntimeException(e);
     }
   }
 
-  private void writeCell(FileChannel writer, String initiator, Cell cell) throws IOException {
+  public void writeCell(Cell cell) {
+    try {
+      writeVertices(cell, savedVertexCount);
+      String initiator = savedCellCount.get() > eightyTwoPercent ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
+      savedCellCount.incrementAndGet();
+      writeCell(initiator, cell);
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
+
+  private void writeCell(String initiator, Cell cell) throws IOException {
     long uuidMSB = cell.getId().getMostSignificantBits();
     long uuidLSB = cell.getId().getLeastSignificantBits();
     int vertexCount = cell.getVertices().size();
@@ -127,14 +116,20 @@ public class CellSerializer {
       buffer.putLong(vertex.getId().getLeastSignificantBits());
     }
     buffer.flip();
-    writer.write(buffer);                                 //Each cell starts with a 128 bit uuid
+    cellWriter.write(buffer);                                 //Each cell starts with a 128 bit uuid
     buffer.flip();
   }
 
-  private void writeVertices(CellProxy cellProxy, FileChannel writer, AtomicInteger savedVertexCount) throws IOException {
-    List<Vertex> vertices = cellProxy.getCell().getVertices();
+  private void writeVertices(Cell cell, AtomicInteger savedVertexCount) throws IOException {
+    List<Vertex> vertices = cell.getVertices();
+    int persistentVertexCount = 0;
+    for (Vertex vertex : vertices) {
+      if (vertex.getShouldPersist()) {
+        persistentVertexCount++;
+      }
+    }
     ByteBuffer buffer = ByteBuffer.allocateDirect(
-        (cellProxy.getOwnedVertexCount() * (Long.BYTES + Long.BYTES + (2 * Float.BYTES))) // The lat longs
+        (persistentVertexCount * VERTEX_BYTE_SIZE) // The lat longs
     );
 
     for (Vertex vertex : vertices) {
@@ -151,7 +146,7 @@ public class CellSerializer {
       }
     }
     buffer.flip();
-    writer.write(buffer);
+    vertexWriter.write(buffer);
     buffer.flip();
   }
 
@@ -180,13 +175,15 @@ public class CellSerializer {
     }
   }
 
-  private FileChannel initializeWriter() {
+  private void initializeWriters() {
     try {
       new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
       //RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
       // OutputStream writer = new BufferedOutputStream());
       // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
-      return new FileOutputStream(new File(this.CELLS_DIR, FILE_NAME)).getChannel();
+      cellWriter = new RandomAccessFile(new File(this.CELLS_DIR, FILE_NAME), "rw").getChannel();
+      vertexWriter = new RandomAccessFile(new File(this.CELLS_DIR, FILE_NAME), "rw").getChannel();
+      cellWriter.position(this.vertexFileOffset);
       //return new FileOutputStream(new File(this.CELLS_DIR, fileName));
     } catch (IOException e) {
       e.printStackTrace();
@@ -194,29 +191,15 @@ public class CellSerializer {
     }
   }
 
-  private void closeWriter(FileChannel writer) {
-    if (writer != null) {
+  public void close() {
       try {
-        writer.close();
+        cellWriter.close();
+        vertexWriter.close();
       } catch (IOException e) {
         e.printStackTrace();
       }
-    }
   }
 
-
-  public void buildCellsFromProxies(CellProxy[] proxies) {
-    System.out.println("Building cells from proxies.");
-    int n = proxies.length;
-    IntStream parallel = IntStream.range(0, n).parallel();
-    parallel.forEach(f -> {
-      builtProxyCount.incrementAndGet();
-      CellProxy proxy = proxies[f];
-      proxy.populateCell();
-    });
-    System.out.println("Finished building cells from proxies.");
-
-  }
 
   public Cell[] readCells() {
     DataInputStream in = initializeReader();
@@ -252,7 +235,7 @@ public class CellSerializer {
           UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
           vertices[i] = vertexMap.get(vertexId);
         }
-        cells[c] = new Cell(cellId, Arrays.asList(vertices), 0, 0, 0, 0);
+        cells[c] = new Cell(cellId, Arrays.asList(vertices),  0, 0, 0);
       }
     } catch (IOException e) {
       e.printStackTrace();

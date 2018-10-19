@@ -6,6 +6,7 @@ import static java.lang.StrictMath.max;
 import static java.lang.StrictMath.min;
 import static java.lang.StrictMath.sqrt;
 
+import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
 import java.io.IOException;
@@ -13,18 +14,21 @@ import java.text.NumberFormat;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
+import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import org.jetbrains.annotations.NotNull;
 
 /**
- * Represents a sphere of proxies arranged in an interpolated icosahedral geodesic pattern.
+ * Represents a sphere of cells arranged in an interpolated icosahedral geodesic pattern.
  *
  * @param {object} options
  * @param {number} [options.divisions = 8] - Integer greater than 0:
- *                 the number of proxies per edge of the icosahedron including
+ *                 the number of cells per edge of the icosahedron including
  *                 the origin of the edge (but not the endpoint). Determines the
  *                 angular resolution of the sphere. Directly & exponentially related
  *                 to the memory consumption of a Sphere.
@@ -35,37 +39,33 @@ import org.jetbrains.annotations.NotNull;
  */
 public class Sphere {
 
-    // public static final String shmDir = "/Volumes/RAMDisk";
-    // public static final File CELL_PROXY_INDICES = new File(shmDir, "cellProxyIndices");
     public static int PEELS = 5;
     private final int divisions;
-    private final AtomicInteger pentagonCount = new AtomicInteger(0);
     private final DatabaseLoader databaseLoader;
-    private CellProxy[] proxies;
+
     private boolean iterating;
     private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
 
-    private AtomicInteger createdProxyCount = new AtomicInteger(0);
     private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
-    private AtomicInteger builtProxyCount = new AtomicInteger(0);
+    private AtomicInteger builtCellCount = new AtomicInteger(0);
     private AtomicInteger savedCellCount = new AtomicInteger(0);
     private AtomicInteger savedVertexCount = new AtomicInteger(0);
-    private AtomicInteger linkedCellCount = new AtomicInteger(0);
     private float cellWriteRate = 0;
     private float vertexWriteRate = 0;
+    private Stack<Cell> cellStack = new Stack();
+    private boolean stackIsDone = false;
 
     public final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
     public final static String initiatorKey82Percent = "9EAC9F9894BC86E1932019AF3B1F3C376C7BBC799F6555B8B623C7ED80E3DD66";
 
-
-    private int cellProxiesLength = -1;
+    private int cellCount = -1;
     private int vertexCount = -1;
 
     public static final double L = acos(sqrt(5) / 5); // the spherical arclength of the icosahedron's edges.
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
 
-    Timer timer = new Timer();
+    Timer reportTimer = new Timer();
     double minLng = Integer.MAX_VALUE;
     double maxLng = Integer.MIN_VALUE;
     double minLat = Integer.MAX_VALUE;
@@ -77,6 +77,7 @@ public class Sphere {
 
     //The laptop can do this easily.  It produces 25 million regions of 7.7 square miles each
     int anotherGoodDivisionsValue = 1600;
+    private CellGenerator cellGenerator;
 
     public Sphere(int divisions, DatabaseLoader loader) {
         this.divisions = divisions;
@@ -89,23 +90,17 @@ public class Sphere {
 
     public void buildCells() throws IOException {
 
-        CellSerializer serializer = new CellSerializer(savedCellCount, savedVertexCount, builtProxyCount);
         percentInstance.setMaximumFractionDigits(2);
 
         //You want 100,000,000 cells so they will be around 2 square miles each.
-        cellProxiesLength = PEELS * 2 * this.divisions * this.divisions + 2;
+        cellCount = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
-        proxies = new CellProxy[cellProxiesLength];
+        cellGenerator = new CellGenerator(cellCount, this.divisions, populatedBaryCenterCount);
         Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
-        //new File(shmDir).mkdirs();
-        // cellProxyIndices = new int[cellProxiesLength * 6];
-        //createOffHeapProxyMap(averageValue);
         double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
-        double cellArea = sphereRadius / cellProxiesLength;
-        System.out.println("Initialized hex proxies to: " + formatter.format(proxies.length)
-            + " proxies.  Each one will average " + cellArea + " square miles.");
-
-        //List<HexCell> cellList = Arrays.asList(proxies);
+        double cellArea = sphereRadius / cellCount;
+        System.out.println("Initialized cells to: " + formatter.format(cellCount) + " cells.  Each one will average " + cellArea + " square miles.");
+        Timer rateTimer = new Timer();
         TimerTask task = new TimerTask() {
             @Override
             public void run() {
@@ -113,38 +108,44 @@ public class Sphere {
                 report();
             }
         };
-
         //  task will be scheduled after 5 sec delay
-        timer.schedule(task, 1000, 1000);
+        reportTimer.schedule(task, 1000, 1000);
 
-        Arrays.parallelSetAll(proxies, i -> {
-            createdProxyCount.incrementAndGet();
-            CellProxy hexCell = new CellProxy(this, i);
-            if (hexCell.isPentagon()) {
-                pentagonCount.incrementAndGet();
+        try {
+            populateBarycenters();//For all the ells, determine and set their barycenters
+            System.out.println("Finished populating");
+            report();
+            createRateWriteTracker(rateTimer);
+            createCellStackWriter();
+            buildCellStack(cellCount);
+            stackIsDone = true;
+        } finally {
+            if (databaseLoader != null) {
+                databaseLoader.stop();
             }
-            return hexCell;
-        });
+            reportTimer.cancel();
+            rateTimer.cancel();
+            task.cancel();
+        }
+        //System.out.println("Min was: " + minArea + " max was " + maxArea);
+        System.out.println("Created and saved " + cellCount + " cells.\nNow go run constraints.sql");
+        final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
+        CellSerializer deSerializer = new CellSerializer();
 
-        System.out.println("Finished creating the cell proxies. " + pentagonCount + " of them are pentagons.");
-        IntStream.range(0, proxies.length).parallel().forEach(i -> {
-            //for(int i=0; i < proxies.length; i++) {
-            linkedCellCount.incrementAndGet();
-            proxies[i].link();
-            //}
-        });
-        System.out.println("Finished linking the cell proxies. Populating Barycenters. There's not much of an update during this point.");
+        if (outputKML) {
+            while (!stackIsDone || !cellStack.empty()) {
+                try {
+                    Thread.sleep(1000);//Wait for the stack to finish processing before trying to read the file
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            new CellSerializer().outputKML(deSerializer, deSerializer.readCells());
+        }
+    }
 
-        //for (int i = 0; i < proxies.length; i++) {
-        //this.proxies[i].link();
-        //}
-        populateBarycenters();//For all the proxies, determine and set their barycenters
-        System.out.println("Finished populating");
-        //System.out.println("Finished getting indexes");
-        report();
-
+    private void createRateWriteTracker(Timer rateTimer) {
         final float[] lastWriteCounts = new float[2];
-        Timer rateTimer = new Timer();
         TimerTask writeRateTracker = new TimerTask() {
             @Override
             public void run() {
@@ -162,31 +163,49 @@ public class Sphere {
 
         //  count cells written every 10 seconds
         rateTimer.schedule(writeRateTracker, new Date(), 1000);
+    }
 
-        serializer.saveCells(proxies, vertexCount);
-        if (databaseLoader != null) {
-            databaseLoader.stop();
-        }
-        timer.cancel();
-        task.cancel();
-        //System.out.println("Min was: " + minArea + " max was " + maxArea);
-        System.out.println("Created and saved " + proxies.length + " cells.\nNow go run constraints.sql");
-        final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-        CellSerializer deSerializer = new CellSerializer();
-
-        if (outputKML) {
-            new CellSerializer().outputKML(deSerializer, deSerializer.readCells());
-        }
+    private void createCellStackWriter() {
+        ExecutorService executor = Executors.newSingleThreadExecutor();
+        executor.submit(() -> {
+            System.out.println("Thread running " + Thread.currentThread().getName());
+            CellSerializer serializer = new CellSerializer(cellCount, vertexCount, savedCellCount, savedVertexCount, builtCellCount);
+            try {
+                while (!stackIsDone || !cellStack.empty()) {
+                    if (!cellStack.empty()) {
+                        serializer.writeCell(cellStack.pop());
+                    } else {//If there's nothing in the queue don't keep looping more then once per second
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    }
+                }
+            } finally {
+                serializer.close();
+            }
+        });
+        executor.shutdown();
     }
 
 
-    public void saveCells(double eightyTwoPercent) {
-        for (int f = 0; f < this.proxies.length; f++) {
-            String initiator = f > eightyTwoPercent ? initiatorKey18Percent : initiatorKey82Percent;
-            CellProxy cellProxy = this.proxies[f];
+    public void buildCellStack(int cellCount) {
+        System.out.println("Building cells.");
+        IntStream parallel = IntStream.range(0, cellCount).parallel();
+        parallel.forEach(f -> {
+            builtCellCount.incrementAndGet();
+            cellStack.push(cellGenerator.populateCell(f));
+        });
+        System.out.println("Finished building cells.");
+    }
+
+    public void saveCells(Cell[] cells, double eightyTwoPercent) {
+        for (int f = 0; f < cells.length; f++) {
+            Cell cell = cells[f];
             try {
                 if (databaseLoader != null) {
-                    databaseLoader.add(cellProxy.getCell());
+                    databaseLoader.add(cell);
                 }
                 savedCellCount.incrementAndGet();
             } catch (Exception e) {
@@ -200,12 +219,10 @@ public class Sphere {
 
     private void report() {
         if(!reportingPaused) {
-            report("Created", proxies.length, createdProxyCount.get(), "CellProxies");
-            report("Linked", proxies.length, linkedCellCount.get(), "CellProxies");
-            report("Populated", proxies.length, populatedBaryCenterCount.get(), "Barycenters");
-            report("Built", proxies.length, builtProxyCount.get(), "CellProxies");
+            report("Populated", cellCount, populatedBaryCenterCount.get(), "Barycenters");
+            report("Built", cellCount, builtCellCount.get(), "Cells");
             report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
-            report("Saved", proxies.length, savedCellCount.get(), "Cells");
+            report("Saved", cellCount, savedCellCount.get(), "Cells");
             System.out.print(" Writing " + vertexWriteRate + " vertexes per ms.");
             System.out.print(" Writing " + cellWriteRate + " cells per ms.");
             System.out.print("\n");
@@ -219,33 +236,6 @@ public class Sphere {
                 ")");
     }
 
-    public int getNorthCellIndex() {
-        return 0;
-    }
-
-    public int getSouthCellIndex() {
-        return 1;
-    }
-
-    public CellProxy getNorth() {
-        return this.proxies[getNorthCellIndex()];
-    }
-
-    public CellProxy getSouth() {
-        return this.proxies[getSouthCellIndex()];
-    }
-
-    public int getDivisions() {
-        return divisions;
-    }
-
-    public boolean isIterating() {
-        return iterating;
-    }
-
-    public void setIterating(boolean iterating) {
-        this.iterating = iterating;
-    }
 
     /**
      * Sets the barycenter position of every cell on a Sphere.
@@ -257,133 +247,125 @@ public class Sphere {
         double[] buf = new double[((divisions - 1) * 2)];
 
 
-        // Determine position for polar and tropical proxies using only arithmetic.
+        // Determine position for polar and tropical cells using only arithmetic.
 
-        proxies[0].setBarycenter(PI / 2, 0);
-        proxies[0].setName("Pentagon 0 (North)");
-        proxies[1].setBarycenter(PI / -2, 0);
-        proxies[1].setName("Pentagon 1 (South)");
+        cellGenerator.addBarycenter(cellGenerator.getNorthPentagonIndex(), PI / 2, 0);
+        cellGenerator.addBarycenter(cellGenerator.getSouthPentagonIndex(), PI / -2, 0);
 
         //Set the other 10 pentagon's barycenters
         for (int s = 0; s < Sphere.PEELS; s += 1) {
             double λNorth = ((double) s) * 2 / 5 * PI;
             double λSouth = ((double) s) * 2 / 5 * PI + PI / 5;
 
-            CellProxy northernPentagon = this.get(s, divisions - 1, 0);
-            northernPentagon.setBarycenter(PI / 2 - L, λNorth);
-            northernPentagon.setName("Pentagon " + ((s * 2) + 2) + " (northern)");
-            CellProxy southernPentagon = this.get(s, max_x, 0);
-            southernPentagon.setBarycenter(PI / -2 + L, λSouth);
-            southernPentagon.setName("Pentagon " + ((s * 2) + 3) + " (southern)");
+            cellGenerator.addBarycenter(cellGenerator.getCellIndex(s, divisions - 1, 0), PI / 2 - L, λNorth);
+            cellGenerator.addBarycenter(cellGenerator.getCellIndex(s, max_x, 0), PI / -2 + L, λSouth);
         }
 
-        // Determine positions for the proxies along the edges using arc interpolation.
+        // Determine positions for the cells along the edges using arc interpolation.
 
-        if ((divisions - 1) > 0) { // divisions must be at least 2 for there to be proxies between vertices.
+        if ((divisions - 1) > 0) { // divisions must be at least 2 for there to be cells between vertices.
 
             //PEELS is 5 so loop 5 times.
             for (final AtomicInteger s = new AtomicInteger(0); s.get() < Sphere.PEELS; s.incrementAndGet()) {
                 int p = (s.get() + 4) % Sphere.PEELS;
                 int northPole = 0;
                 int southPole = 1;
-                int currentNorthTropicalPentagon = this.get(s.get(), divisions - 1, 0).getIndex();
-                int previousNorthTropicalPentagon = this.get(p, divisions - 1, 0).getIndex();
-                int currentSouthTropicalPentagon = this.get(s.get(), max_x, 0).getIndex();
-                int previousSoutTropicalPentagon = this.get(p, max_x, 0).getIndex();
+                int currentNorthTropicalPentagon = cellGenerator.getCellIndex(s.get(), divisions - 1, 0);
+                int previousNorthTropicalPentagon = cellGenerator.getCellIndex(p, divisions - 1, 0);
+                int currentSouthTropicalPentagon = cellGenerator.getCellIndex(s.get(), max_x, 0);
+                int previousSoutTropicalPentagon = cellGenerator.getCellIndex(p, max_x, 0);
 
                 // north pole to current north tropical pentagon
-                this.proxies[northPole].getBarycenter().interpolate(this.proxies[currentNorthTropicalPentagon].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(northPole).interpolate(cellGenerator.getBarycenter(currentNorthTropicalPentagon), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    CellProxy cellProxy = this.get(s.get(), i - 1, 0);
-                    cellProxy.setName("North to North Tropical " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), i - 1, 0);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous north tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousNorthTropicalPentagon].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(currentNorthTropicalPentagon).interpolate(cellGenerator.getBarycenter(previousNorthTropicalPentagon), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    CellProxy cellProxy = this.get(s.get(), divisions - 1 - i, i);
-                    cellProxy.setName("North Tropical to North Tropical " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), divisions - 1 - i, i);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                 });
 
                 // current north tropical pentagon to previous south tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousSoutTropicalPentagon].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(currentNorthTropicalPentagon).interpolate(cellGenerator.getBarycenter(previousSoutTropicalPentagon), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    CellProxy cellProxy = this.get(s.get(), divisions - 1, i);
-                    cellProxy.setName("North Tropical to South Tropical " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), divisions - 1, i);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current north tropical pentagon to current south tropical pentagon
-                this.proxies[currentNorthTropicalPentagon].getBarycenter().interpolate(this.proxies[currentSouthTropicalPentagon].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(currentNorthTropicalPentagon).interpolate(cellGenerator.getBarycenter(currentSouthTropicalPentagon), divisions, buf);
                 IntStream.range(1, divisions).parallel().forEach(i -> {
                     //for(int i=1; i < divisions; i++) {
-                    CellProxy cellProxy = this.get(s.get(), divisions - 1 + i, 0);
-                    cellProxy.setName("North Tropical to South Tropical " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), divisions - 1 + i, 0);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current south tropical pentagon to previous south tropical pentagon
-                this.proxies[currentSouthTropicalPentagon].getBarycenter().interpolate(this.proxies[previousSoutTropicalPentagon].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(currentSouthTropicalPentagon).interpolate(cellGenerator.getBarycenter(previousSoutTropicalPentagon), divisions, buf);
                 //for(int i=1; i < divisions; i++) {
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    CellProxy cellProxy = this.get(s.get(), max_x - i, i);
-                    cellProxy.setName("South Tropical to South Tropical " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), max_x - i, i);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
 
                 // current south tropical pentagon to south pole
-                this.proxies[currentSouthTropicalPentagon].getBarycenter().interpolate(this.proxies[southPole].getBarycenter(), divisions, buf);
+                cellGenerator.getBarycenter(currentSouthTropicalPentagon).interpolate(cellGenerator.getBarycenter(southPole), divisions, buf);
                 //for(int i=1; i < divisions; i++) {
                 IntStream.range(1, divisions).parallel().forEach(i -> {
-                    CellProxy cellProxy = this.get(s.get(), max_x, i);
-                    cellProxy.setName("South Tropical to South " + s.get());
-                    cellProxy.setBarycenter(buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
+                    int cellIndex = cellGenerator.getCellIndex(s.get(), max_x, i);
+                    cellGenerator.addBarycenter(cellIndex, buf[2 * (i - 1) + 0], buf[2 * (i - 1) + 1]);
                     //}
                 });
             }
         }
 
-        // Determine positions for proxies between edges using interpolation.
+        // Determine positions for cells between edges using interpolation.
 
-        if ((divisions - 2) > 0) { // divisions must be at least 3 for there to be proxies not along edges.
+        if ((divisions - 2) > 0) { // divisions must be at least 3 for there to be cells not along edges.
             for (int k = 0; k < Sphere.PEELS; k++) {
                 final int s = k;
 
                 for (int y = 0; y < (divisions * 2); y++) {
                     final int x = y;
-                    // for each column, fill in values for proxies between edge proxies,
+                    // for each column, fill in values for cells between edge cells,
                     // whose positions were defined in the previous block.
                     if ((x + 1) % divisions > 0) { // ignore the columns that are edges.
 
                         int j = divisions - ((x + 1) % divisions); // the y index of the cell in this column that is along a diagonal edge
-                        int n1 = j - 1; // the number of unpositioned proxies before j
-                        int n2 = divisions - 1 - j; // the number of unpositioned proxies after j
-                        int f1 = this.get(s, x, 0).getIndex(); // the cell along the early edge
-                        int f2 = this.get(s, x, j).getIndex(); // the cell along the diagonal edge
-                        int f3 = this.get(s, x, divisions - 1).getAdjacent(2).getIndex(); // the cell along the later edge,
-                        // which will necessarily belong to
-                        // another section.
+                        int n1 = j - 1; // the number of unpositioned cells before j
+                        int n2 = divisions - 1 - j; // the number of unpositioned cells after j
+                        int f1 = cellGenerator.getCellIndex(s, x, 0); // the cell along the early edge
+                        int f2 = cellGenerator.getCellIndex(s, x, j); // the cell along the diagonal edge
+                        // the cell along the later edge, which will necessarily belong to another section.
+                        int laterEdgeCellIndex = cellGenerator.getCellIndex(s, x, divisions - 1);
+                        //This should be temporary.  The cell indexes should be generated just to get the third index
+                        int thirdNeihborIndex = cellGenerator.getThirdNeighbor(laterEdgeCellIndex);
+                        int f3 = thirdNeihborIndex;
 
-                        this.proxies[f1].getBarycenter().interpolate(this.proxies[f2].getBarycenter(), n1 + 1, buf);
+                        cellGenerator.getBarycenter(f1).interpolate(cellGenerator.getBarycenter(f2), n1 + 1, buf);
                         IntStream.range(1, j).parallel().forEach(i -> {
                             int b1 = 2 * (i - 1) + 0;
                             int b2 = 2 * (i - 1) + 1;
-                            this.get(s, x, i).setBarycenter(buf[b1], buf[b2]);
+                            int cellIndex = cellGenerator.getCellIndex(s, x, i);
+                            cellGenerator.addBarycenter(cellIndex, buf[b1], buf[b2]);
                         });
 
-                        this.proxies[f2].getBarycenter().interpolate(this.proxies[f3].getBarycenter(), n2 + 1, buf);
+                        cellGenerator.getBarycenter(f2).interpolate(cellGenerator.getBarycenter(f3), n2 + 1, buf);
                         IntStream.range(j + 1, divisions).parallel().forEach(i -> {
                             int b1 = 2 * (i - j - 1) + 0;
                             int b2 = 2 * (i - j - 1) + 1;
-                            this.get(s, x, i).setBarycenter(buf[b1], buf[b2]);
+                            int cellIndex = cellGenerator.getCellIndex(s, x, i);
+                            cellGenerator.addBarycenter(cellIndex,buf[b1], buf[b2]);
                         });
                     }
                 }
@@ -391,60 +373,35 @@ public class Sphere {
         }
     }
 
-    public int getPentagonCount() {
-        return pentagonCount.get();
-    }
-
-    public CellProxy[] getCellProxies() {
-        return proxies;
-    }
-
-    public CellProxy getCell(int i) {
-        return proxies[i];
-    }
-
-    public int getCellIndex(int s, int x, int y) {
-        return s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2;
-    }
-
-    public CellProxy get(int s, int x, int y) {
-        return this.proxies[s * this.divisions * this.divisions * 2 + x * this.divisions + y + 2];
-    }
-
-
-
-
 
     @NotNull
-    private IntStream saveVertices() {
-        int n = this.proxies.length;
-        IntStream parallel = IntStream.range(0, n).parallel();
+    private IntStream saveVertices(Cell[] cells) {
+        IntStream parallel = IntStream.range(0, cells.length).parallel();
         //AreaFinder areaFinder = new AreaFinder();
-        //areaFinder.getArea(proxies[0].getVertices(sharedVertexMap));
+        //areaFinder.getArea(cells[0].getVertices(sharedVertexMap));
         parallel.forEach(f -> {
-            CellProxy proxy = this.proxies[f];
-            List<Vertex> verticesToSave = proxy.populateCell().getVertices();
+            Cell cell = cells[f];
+            List<Vertex> verticesToSave = cell.getVertices();
             for (int i = 0; i < verticesToSave.size(); i++) {
-                minLat = min(minLat, verticesToSave.get(i).getLatitude());
-                maxLat = max(maxLat, verticesToSave.get(i).getLatitude());
-                minLng = min(minLng, verticesToSave.get(i).getLongitude());
-                maxLng = max(maxLng, verticesToSave.get(i).getLongitude());
-                databaseLoader.add(verticesToSave.get(i));
-                savedVertexCount.incrementAndGet();
+                Vertex vertex = verticesToSave.get(i);
+                if (vertex.getShouldPersist()) {
+                    minLat = min(minLat, vertex.getLatitude());
+                    maxLat = max(maxLat, vertex.getLatitude());
+                    minLng = min(minLng, vertex.getLongitude());
+                    maxLng = max(maxLng, vertex.getLongitude());
+                    databaseLoader.add(vertex);
+                    savedVertexCount.incrementAndGet();
+                }
             }
         });
         databaseLoader.completeVertices();
         return parallel;
     }
 
-    public void incrementBarycenterCount() {
-        populatedBaryCenterCount.getAndIncrement();
-    }
-
     //public String toString() {
     //String out = "";
-    //for(int i=0; i < proxies; i++) {
-    //out += "Cell " + i + ":\n" + proxies[i] + "\n";
+    //for(int i=0; i < cells; i++) {
+    //out += "Cell " + i + ":\n" + cells[i] + "\n";
     //}
     //return out;
     //}

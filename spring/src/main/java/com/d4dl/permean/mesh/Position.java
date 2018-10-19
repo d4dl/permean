@@ -14,8 +14,6 @@ public class Position implements Serializable, LatComparable {
     public static final double π = PI;
     public static final double LAT_CONVERT = 90 * 2/π;
     public static final double LNG_CONVERT = 180/PI;
-    private Vertex vertex;
-    private int vertexIndex;
 
     //Latitude (elevation angle) the angle in radians between the equatorial plane and the straight line that passes
     //through that point and through (or close to) the center of the Earth
@@ -156,16 +154,6 @@ public class Position implements Serializable, LatComparable {
     public double getLng() {
         return 180 * (λ / PI);
     }
-
-
-    public Vertex getVertex() {
-        return vertex;
-    }
-
-    public void setVertex(Vertex vertex) {
-        this.vertex = vertex;
-    }
-
     /**
      * Either compareTo using lat or lng if alt is true.
      * @param o
