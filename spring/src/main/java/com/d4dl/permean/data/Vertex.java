@@ -30,6 +30,7 @@ public class Vertex extends BasicEntity {
 
     float latitude;
     float longitude;
+    int index;
 
     @ManyToMany(mappedBy = "vertices", fetch = FetchType.LAZY)
     @JsonIgnore
@@ -37,6 +38,11 @@ public class Vertex extends BasicEntity {
 
     public Vertex() {
 
+    }
+
+    public Vertex(int index, float latitude, float longitude) {
+        this(null, latitude, longitude);
+        this.index = index;
     }
 
     public Vertex(UUID uuid, float latitude, float longitude) {
@@ -60,5 +66,11 @@ public class Vertex extends BasicEntity {
 
     public boolean getShouldPersist() {
       return shouldPersist;
+    }
+
+    public String toString() {
+      StringBuffer buffer = new StringBuffer();
+      buffer.append("[").append(this.latitude).append(",").append(this.longitude).append("]");
+      return buffer.toString();
     }
 }

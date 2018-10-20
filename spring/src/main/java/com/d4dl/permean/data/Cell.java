@@ -31,22 +31,33 @@ public class Cell extends BasicEntity {
             @JoinColumn(name="vertices_id", referencedColumnName="id")
     )
     @OrderColumn(name="sequence")
-    private List<Vertex> vertices;
+    private Vertex[] vertices;
 
 
     public Cell() {
 
     }
 
-    public Cell(List<Vertex> vertices, double area, float centerLatitude, float centerLongitude) {
+    public Cell(Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
         this(UUID.randomUUID(), vertices, area, centerLatitude, centerLongitude);
     }
 
-    public Cell(UUID id, List<Vertex> vertices, double area, float centerLatitude, float centerLongitude) {
+    public Cell(UUID id, Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
         setId(id);
         this.centerLatitude = centerLatitude;
         this.centerLongitude = centerLongitude;
         this.vertices = vertices;
         this.area = area;
+    }
+
+    public String toString() {
+        StringBuffer buffer = new StringBuffer();
+
+      buffer.append(getId()).append(" = {");
+      for(Vertex vertex : vertices) {
+          buffer.append(vertex.toString()).append(",");
+      }
+      buffer.append("}");
+      return buffer.toString();
     }
 }

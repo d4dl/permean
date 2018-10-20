@@ -148,8 +148,8 @@ public class StatementWriter {
 
     private void addVertexValues(PreparedStatement joinStmt, Cell cell) {
         try {
-            for (int i = 0; i < cell.getVertices().size(); i++) {
-                Vertex vertex = cell.getVertices().get(i);
+            for (int i = 0; i < cell.getVertices().length; i++) {
+                Vertex vertex = cell.getVertices()[i];
                 joinStmt.setString(1, cell.getId().toString());
                 joinStmt.setString(2, vertex.getId().toString());
                 joinStmt.setInt(3, i);

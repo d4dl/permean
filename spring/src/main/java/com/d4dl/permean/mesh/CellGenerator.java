@@ -51,10 +51,12 @@ public class CellGenerator {
     return new Cell(id, populateVertices(id, cellIndex), 0, (float)barycenters[cellIndex].getLat(), (float)barycenters[cellIndex].getLng());
   }
 
-  public List<Vertex> populateVertices(UUID owningCellId, int cellIndex) {
+  public Vertex[] populateVertices(UUID owningCellId, int cellIndex) {
+
+    boolean isPentagon = isPentagon(cellIndex);
+    Vertex[] vertices = new Vertex[isPentagon ? 5 : 6];
 
     int[] adjacentCellIndices = getAdjacentCellIndices(cellIndex);
-    List<Vertex> addedVertices = new ArrayList();
     for (int i = 0; i < adjacentCellIndices.length; i++) {
       int firstAdjacentIndex = adjacentCellIndices[i];
       int neighborIndex = (i == (adjacentCellIndices.length - 1) ? 0 : i + 1);
@@ -78,10 +80,10 @@ public class CellGenerator {
       if (isPersistenceOwner) {
         sharedVertex.setShouldPersist();
       }
-      addedVertices.add(sharedVertex);
+      vertices[i] = sharedVertex;
     }
 
-    return addedVertices;
+    return vertices;
   }
 
 
@@ -96,7 +98,7 @@ public class CellGenerator {
 
 
   public int[] getAdjacentCellIndices(int cellIndex) {
-    boolean isPentagon = ((cellIndex < 2) || (getSxy(cellIndex)[2] == 0 && ((getSxy(cellIndex)[1] + 1) % sphereDivisions) == 0));
+    boolean isPentagon = isPentagon(cellIndex);
     int[] adjacentCellIndices = null;
     // Don't forget to prevent recalculation of the adjacent cells from ocurring over and over
     int[] sxy = getSxy(cellIndex);
@@ -215,6 +217,10 @@ public class CellGenerator {
       }
     }
     return adjacentCellIndices;
+  }
+
+  private boolean isPentagon(int cellIndex) {
+    return (cellIndex < 2) || (getSxy(cellIndex)[2] == 0 && ((getSxy(cellIndex)[1] + 1) % sphereDivisions) == 0);
   }
 
   public int getThirdNeighbor(int cellIndex) {

@@ -130,7 +130,7 @@ public class Sphere {
         //System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + cellCount + " cells.\nNow go run constraints.sql");
         final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-        CellSerializer deSerializer = new CellSerializer();
+        CellSerializer deSerializer = new CellSerializer(true);
 
         if (outputKML) {
             while (!stackIsDone || !cellStack.empty()) {
@@ -140,7 +140,7 @@ public class Sphere {
                     e.printStackTrace();
                 }
             }
-            new CellSerializer().outputKML(deSerializer, deSerializer.readCells());
+            deSerializer.outputKML(deSerializer, deSerializer.readCells().entrySet().iterator().next().getValue());
         }
     }
 
@@ -173,7 +173,7 @@ public class Sphere {
             try {
                 while (!stackIsDone || !cellStack.empty()) {
                     if (!cellStack.empty()) {
-                        serializer.writeCell(cellStack.pop());
+                        serializer.writeCell(cellStack.pop(), true);
                     } else {//If there's nothing in the queue don't keep looping more then once per second
                         try {
                             Thread.sleep(1000);
@@ -382,9 +382,9 @@ public class Sphere {
         //areaFinder.getArea(cells[0].getVertices(sharedVertexMap));
         parallel.forEach(f -> {
             Cell cell = cells[f];
-            List<Vertex> verticesToSave = cell.getVertices();
-            for (int i = 0; i < verticesToSave.size(); i++) {
-                Vertex vertex = verticesToSave.get(i);
+            Vertex[] verticesToSave = cell.getVertices();
+            for (int i = 0; i < verticesToSave.length; i++) {
+                Vertex vertex = verticesToSave[i];
                 if (vertex.getShouldPersist()) {
                     minLat = min(minLat, vertex.getLatitude());
                     maxLat = max(maxLat, vertex.getLatitude());
