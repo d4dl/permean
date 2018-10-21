@@ -21,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import javax.media.jai.iterator.RandomIter;
 import org.jetbrains.annotations.NotNull;
 
 /**
@@ -116,14 +117,13 @@ public class Sphere {
             System.out.println("Finished populating");
             report();
             createRateWriteTracker(rateTimer);
-            createCellStackWriter();
+            createCellStackWriter(reportTimer);
             buildCellStack(cellCount);
             stackIsDone = true;
         } finally {
             if (databaseLoader != null) {
                 databaseLoader.stop();
             }
-            reportTimer.cancel();
             rateTimer.cancel();
             task.cancel();
         }
@@ -165,7 +165,7 @@ public class Sphere {
         rateTimer.schedule(writeRateTracker, new Date(), 1000);
     }
 
-    private void createCellStackWriter() {
+    private void createCellStackWriter(Timer reportTimer) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
             System.out.println("Thread running " + Thread.currentThread().getName());
@@ -182,6 +182,7 @@ public class Sphere {
                         }
                     }
                 }
+                reportTimer.cancel();
             } finally {
                 serializer.close();
             }
@@ -194,8 +195,10 @@ public class Sphere {
         System.out.println("Building cells.");
         IntStream parallel = IntStream.range(0, cellCount).parallel();
         parallel.forEach(f -> {
+            double random = Math.random() * 100;
             builtCellCount.incrementAndGet();
-            cellStack.push(cellGenerator.populateCell(f));
+            String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
+            cellStack.push(cellGenerator.populateCell(f, initiator));
         });
         System.out.println("Finished building cells.");
     }
@@ -225,7 +228,8 @@ public class Sphere {
             report("Saved", cellCount, savedCellCount.get(), "Cells");
             System.out.print(" Writing " + vertexWriteRate + " vertexes per ms.");
             System.out.print(" Writing " + cellWriteRate + " cells per ms.");
-            System.out.print(cellStack.size() + " cells in the cell stack.");
+            //System.out.print(" " + cellStack.size() + " cells in the cell stack (" + percentInstance.format(((double)cellStack.size()) / ((double)cellCount) + ")."));
+            System.out.print(" " + cellStack.size() + " cells in the cell stack .");
             System.out.print("\n");
         }
     }

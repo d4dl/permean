@@ -1,6 +1,7 @@
 package com.d4dl.permean.mesh;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
+import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
@@ -70,7 +71,7 @@ public class CellSerializer {
   private AtomicInteger builtProxyCount;
   FileChannel cellWriter = null;
   FileChannel vertexWriter = null;
-  double eightyTwoPercent;
+  //static double eightyTwoPercent;
   //Long format uses vertex uuids short format uses vertex indexes
   boolean longFormat = false;
 
@@ -87,7 +88,7 @@ public class CellSerializer {
       this.vertexFileOffset = totalVertexCount * VERTEX_BYTE_SIZE_SHORT + VERTEX_AND_CELL_COUNT_SIZE;
     }
     this.longFormat = longFormat;
-    this.eightyTwoPercent = totalCellCount * .82;
+    //this.eightyTwoPercent = totalCellCount * .82;
     initializeWriters();
     writeCounts(totalCellCount, totalVertexCount);
 
@@ -119,9 +120,8 @@ public class CellSerializer {
       if (writeVertices) {
         writeVertices(cell);
       }
-      String initiator = savedCellCount.get() > eightyTwoPercent ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
       savedCellCount.incrementAndGet();
-      writeCell(initiator, cell);
+      writeCell(cell.getInitiator(), cell);
     } catch (IOException e) {
       e.printStackTrace();
     }
@@ -221,6 +221,7 @@ public class CellSerializer {
       }
       buff.append(vertices[i].kmlString(height));
     }
+    buff.append("\n");
     buff.append(vertices[0].kmlString(height));//Make the first one also last.
     return buff.toString();
   }
@@ -273,8 +274,7 @@ public class CellSerializer {
     BufferedWriter writer = null;
     try {
       writer = new BufferedWriter(new FileWriter(file));
-      String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly",
-          "transYellowPoly"};
+      String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly", "transYellowPoly"};
       writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
           "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
           "  <Document>\n" +
@@ -313,12 +313,15 @@ public class CellSerializer {
       );
       int limit = cells.length;//20
       for (int i = 0; i < limit; i++) {
-        writer.write("    <Placemark>\n" +
-            "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
-            //"      <styleUrl>#" + styles[i % styles.length] + "</styleUrl>\n" +
-            "      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
-            getLineString(serializer, cells[i]) +
-            "    </Placemark>\n");
+        int styleIndex = initiatorKey18Percent.equals(cells[i].getInitiator()) ? 0 : 2;
+        if (initiatorKey18Percent.equals(cells[i].getInitiator()))
+          writer.write("    <Placemark>\n" +
+              "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
+              "      <styleUrl>#" + styles[styleIndex] + "</styleUrl>\n" +
+              //"      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
+              getLineString(serializer, cells[i]) +
+              //getPolygon(serializer, cells[i]) +
+              "    </Placemark>\n");
       }
       writer.write("  </Document>\n" +
           "</kml>");
@@ -362,6 +365,7 @@ public class CellSerializer {
         }
         //System.out.println(i + " Getting vertex " + orderedVertices[i]);
       }
+      System.out.println("Finished reading in vertices.  Now reading and populating cells.");
 
       for (int c=0; c < cellCount; c++) {
         long uuidMSB = in.readLong();
@@ -385,7 +389,7 @@ public class CellSerializer {
           }
           vertices[i] = vertex;
         }
-        cells[c] = new Cell(cellId, vertices,  0, 0, 0);
+        cells[c] = new Cell(initiator == 0 ? initiatorKey82Percent : initiatorKey18Percent, cellId, vertices,  0, 0, 0);
 
         //System.out.println("R: " + cells[c]);
       }
@@ -403,7 +407,8 @@ public class CellSerializer {
   }
 
   private String getLineString(CellSerializer serializer, Cell cell) {
-    return "      <LineString>\n" +
+    return
+        "      <LineString>\n" +
         "        <tesselate>1</tesselate>\n" +
         "        <altitudeMode>relativeToGround</altitudeMode>\n" +
         "        <coordinates>\n" +
@@ -412,7 +417,8 @@ public class CellSerializer {
         "      </LineString>\n";
   }
   private String getPolygon(CellSerializer serializer, Cell cell) {
-    return "      <Polygon>\n" +
+    return
+        "      <Polygon>\n" +
         "      <outerBoundaryIs>\n" +
         "      <LinearRing>\n" +
         "        <tesselate>1</tesselate>\n" +

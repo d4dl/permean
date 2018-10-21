@@ -46,9 +46,9 @@ public class CellGenerator {
    * is returned, all vertices will be guaranteed to be returned only once.
    * adding a vertex more than once (when another neighboring cell is processed) can be avoided.
    */
-  public Cell populateCell(int cellIndex) {
+  public Cell populateCell(int cellIndex, String initiator) {
     UUID id = UUID.randomUUID();
-    return new Cell(id, populateVertices(id, cellIndex), 0, (float)barycenters[cellIndex].getLat(), (float)barycenters[cellIndex].getLng());
+    return new Cell(initiator, id, populateVertices(id, cellIndex), 0, (float)barycenters[cellIndex].getLat(), (float)barycenters[cellIndex].getLng());
   }
 
   public Vertex[] populateVertices(UUID owningCellId, int cellIndex) {

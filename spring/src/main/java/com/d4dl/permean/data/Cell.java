@@ -17,7 +17,8 @@ import java.util.List;
         attributeNodes = @NamedAttributeNode("vertices"))
 public class Cell extends BasicEntity {
 
-    private double area;
+  private String initiator;
+  private double area;
     float centerLatitude;
     float centerLongitude;
 
@@ -39,11 +40,12 @@ public class Cell extends BasicEntity {
     }
 
     public Cell(Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
-        this(UUID.randomUUID(), vertices, area, centerLatitude, centerLongitude);
+        this(null, UUID.randomUUID(), vertices, area, centerLatitude, centerLongitude);
     }
 
-    public Cell(UUID id, Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
+    public Cell(String initiator, UUID id, Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
         setId(id);
+        this.initiator = initiator;
         this.centerLatitude = centerLatitude;
         this.centerLongitude = centerLongitude;
         this.vertices = vertices;
