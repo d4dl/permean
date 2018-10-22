@@ -1,27 +1,17 @@
 package com.d4dl.permean.mesh;
 
-import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
-import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
-
 import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
-import java.io.BufferedInputStream;
-import java.io.BufferedWriter;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.RandomAccessFile;
+
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
+import java.util.zip.GZIPInputStream;
+
+import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
+import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
 public class CellSerializer {
 
@@ -222,7 +212,11 @@ public class CellSerializer {
     try {
       File file = new File(fileIn);
       System.out.println("Reading cells from " + file.getAbsolutePath());
-      return new DataInputStream(new BufferedInputStream(new FileInputStream( file)));
+      if(file.getName().endsWith(".gz")) {
+        return new DataInputStream(new GZIPInputStream(new BufferedInputStream(new FileInputStream(file))));
+      } else {
+        return new DataInputStream(new BufferedInputStream(new FileInputStream(file)));
+      }
     } catch (IOException e) {
       e.printStackTrace();
       throw new RuntimeException(e);
