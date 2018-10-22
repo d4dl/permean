@@ -341,6 +341,8 @@ public class CellSerializer {
    * @return
    */
   public Cell[] readCells(CellSerializer writer) {
+    int initiator82Count = 0;
+    int initiator18Count = 0;
     int currentPersistentVertexIndex = 0;
     DataInputStream in = initializeReader();
     int cellCount = 0;
@@ -405,6 +407,11 @@ public class CellSerializer {
           }
           vertices[i] = vertex;
         }
+        if (initiator == 0) {
+          initiator82Count++;
+        } else {
+          initiator18Count++;
+        }
         Cell cell = new Cell(initiator == 0 ? initiatorKey82Percent : initiatorKey18Percent, cellId, vertices, 0, 0, 0);
         if (writer != null) {
           currentPersistentVertexIndex = writer.writeCell(currentPersistentVertexIndex, cell);
@@ -413,6 +420,7 @@ public class CellSerializer {
         }
         reporter.incrementCellsWritten();
 
+        System.out.println("18%" + initiator18Count + " 82% " + initiator82Count + (initiator18Count / cellCount));
         //System.out.println("R: " + cells[c]);
       }
     } catch (IOException e) {
