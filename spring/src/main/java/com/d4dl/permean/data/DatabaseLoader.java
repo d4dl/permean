@@ -62,7 +62,7 @@ public class DatabaseLoader implements CommandLineRunner {
         }
 
         System.out.println("Creating a sphere with " + this.parentSize + " divisions");
-        Sphere sphere = new Sphere(this.parentSize, this);
+        Sphere sphere = new Sphere("/tmp/cellsLong.json", this.parentSize, this);
         sphere.buildCells();
     }
 

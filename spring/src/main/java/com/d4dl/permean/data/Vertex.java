@@ -28,6 +28,10 @@ public class Vertex extends BasicEntity {
     @JsonIgnore
     private boolean shouldPersist;
 
+    @Transient
+    @JsonIgnore
+    private short accessCount;
+
     float latitude;
     float longitude;
     int index;
@@ -72,5 +76,10 @@ public class Vertex extends BasicEntity {
       StringBuffer buffer = new StringBuffer();
       buffer.append("[").append(this.latitude).append(",").append(this.longitude).append("]");
       return buffer.toString();
+    }
+
+    public short access() {
+        accessCount++;
+        return accessCount;
     }
 }

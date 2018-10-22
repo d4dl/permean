@@ -3,6 +3,7 @@ package com.d4dl.permean.mesh;
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
+import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import java.io.BufferedInputStream;
@@ -10,31 +11,28 @@ import java.io.BufferedWriter;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.IntStream;
 
 public class CellSerializer {
 
+  private final String fileIn;
+  private final String fileOut;
   private static final byte FIVE_VERTEX_CELL = 5;
   private static final byte SIX_VERTEX_CELL = 6;
-  private static final String FILE_NAME_LONG = "cellMap.json";
-  private static final String FILE_NAME_SHORT = "cells.json";
   public static final int VERTEX_BYTE_SIZE_LONG = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
   public static final int VERTEX_BYTE_SIZE_SHORT = 2 * Float.BYTES;//Short format is just the vertices in order
   private static final int VERTEX_AND_CELL_COUNT_SIZE = 8;
+  private ProgressReporter reporter;
 
   private static ByteBuffer SIX_VERTEX_CELL_BUFFER_LONG = ByteBuffer.allocateDirect(
       Long.BYTES + Long.BYTES +// The cell uuid
@@ -64,38 +62,30 @@ public class CellSerializer {
           5 * (Integer.BYTES)
   );
 
-  public static final File CELLS_DIR = new File("/tmp/cells");
   private int vertexFileOffset;
-  private AtomicInteger savedVertexCount;
-  private AtomicInteger savedCellCount;
-  private AtomicInteger builtProxyCount;
   FileChannel cellWriter = null;
   FileChannel vertexWriter = null;
   //static double eightyTwoPercent;
   //Long format uses vertex uuids short format uses vertex indexes
   boolean longFormat = false;
 
-  public CellSerializer(int totalCellCount, int totalVertexCount, AtomicInteger savedCellCount, AtomicInteger savedVertexCount, AtomicInteger builtProxyCount) {
-   this(totalCellCount, totalVertexCount, savedCellCount, savedVertexCount, builtProxyCount, true);
+  public CellSerializer(String fileIn, String fileOut, ProgressReporter reporter) {
+   this(fileIn, fileOut, reporter, true);
   }
-  public CellSerializer(int totalCellCount, int totalVertexCount, AtomicInteger savedCellCount, AtomicInteger savedVertexCount, AtomicInteger builtProxyCount, boolean longFormat) {
-    this.savedCellCount = savedCellCount;
-    this.savedVertexCount = savedVertexCount;
-    this.builtProxyCount = builtProxyCount;
+  public CellSerializer(String fileIn, String fileOut, ProgressReporter reporter, boolean longFormat) {
+    this.fileIn = fileIn;
+    this.fileOut = fileOut;
+    this.reporter = reporter;
     if (longFormat) {
-      this.vertexFileOffset = totalVertexCount * VERTEX_BYTE_SIZE_LONG + VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = reporter.getVertexCount() * VERTEX_BYTE_SIZE_LONG + VERTEX_AND_CELL_COUNT_SIZE;
     } else {
-      this.vertexFileOffset = totalVertexCount * VERTEX_BYTE_SIZE_SHORT + VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = reporter.getVertexCount() * VERTEX_BYTE_SIZE_SHORT + VERTEX_AND_CELL_COUNT_SIZE;
     }
     this.longFormat = longFormat;
     //this.eightyTwoPercent = totalCellCount * .82;
     initializeWriters();
-    writeCounts(totalCellCount, totalVertexCount);
+    writeCounts(reporter.getCellCount(), reporter.getVertexCount());
 
-  }
-
-  public CellSerializer(boolean longFormat) {
-    this.longFormat = longFormat;
   }
 
   private void writeCounts(int cellCount, int vertexCount) {
@@ -120,7 +110,7 @@ public class CellSerializer {
       if (writeVertices) {
         writeVertices(cell);
       }
-      savedCellCount.incrementAndGet();
+      reporter.incrementCellsWritten();
       writeCell(cell.getInitiator(), cell);
     } catch (IOException e) {
       e.printStackTrace();
@@ -204,7 +194,7 @@ public class CellSerializer {
       buffer.putFloat(latitude);
       float longitude = vertex.getLongitude();
       buffer.putFloat(longitude);
-      savedVertexCount.incrementAndGet();
+      reporter.incrementVerticesWritten();
     }
     buffer.flip();
     vertexWriter.write(buffer);
@@ -230,7 +220,7 @@ public class CellSerializer {
 
   private DataInputStream initializeReader() {
     try {
-      File file = new File(this.CELLS_DIR, longFormat ? FILE_NAME_LONG : FILE_NAME_SHORT);
+      File file = new File(fileIn);
       System.out.println("Reading cells from " + file.getAbsolutePath());
       return new DataInputStream(new BufferedInputStream(new FileInputStream( file)));
     } catch (IOException e) {
@@ -241,14 +231,14 @@ public class CellSerializer {
 
   private void initializeWriters() {
     try {
-      new File(this.CELLS_DIR.getAbsolutePath()).mkdirs();
       //RandomAccessFile raf = new RandomAccessFile(new File(this.CELLS_DIR, fileName), "rw");
       // OutputStream writer = new BufferedOutputStream());
       // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
-      File file1 = new File(this.CELLS_DIR, longFormat ? FILE_NAME_LONG : FILE_NAME_SHORT);
-      System.out.println("Writing file to " + file1.getAbsolutePath());
-      cellWriter = new RandomAccessFile(file1, "rw").getChannel();
-      vertexWriter = new RandomAccessFile(new File(this.CELLS_DIR, longFormat ? FILE_NAME_LONG : FILE_NAME_SHORT), "rw").getChannel();
+
+      File file = new File(fileOut);
+      System.out.println("Writing file to " + file.getAbsolutePath());
+      cellWriter = new RandomAccessFile(file, "rw").getChannel();
+      vertexWriter = new RandomAccessFile(file, "rw").getChannel();
       cellWriter.position(this.vertexFileOffset);
       //return new FileOutputStream(new File(this.CELLS_DIR, fileName));
     } catch (IOException e) {
@@ -258,13 +248,22 @@ public class CellSerializer {
   }
 
   public void close() {
-      try {
+    try {
+      if (cellWriter != null) {
         cellWriter.close();
-        vertexWriter.close();
-      } catch (IOException e) {
-        e.printStackTrace();
       }
- }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    try {
+      if (vertexWriter != null) {
+        vertexWriter.close();
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+  }
 
 
   public void outputKML(CellSerializer serializer, Cell[] cells) throws IOException {
@@ -333,20 +332,29 @@ public class CellSerializer {
     }
   }
 
-  public Map<Integer, Cell[]> readCells() {
+  public Cell[] readCells() {
+    return readCells(null);
+  }
+  /**
+   *
+   * @param writer write the cells out, otherwise return them
+   * @return
+   */
+  public Cell[] readCells(CellSerializer writer) {
+    int currentPersistentVertexIndex = 0;
     DataInputStream in = initializeReader();
     int cellCount = 0;
     int totalVertexCount = 0;
     Cell[] cells = null;
-    Map cellsByVertexCount = new HashMap();
     // Preserve the order the vertices are read in so the indexes are correct
-    Map<UUID, Vertex> vertexMap = new LinkedHashMap();// For the long format
     try {
       cellCount = in.readInt();
       totalVertexCount = in.readInt();
+      Map<UUID, Vertex> vertexMap = new HashMap(totalVertexCount);// For the long format
+      reporter.setCellCount(cellCount);
+      reporter.setVertexCount(totalVertexCount);
       Vertex[] orderedVertices = new Vertex[totalVertexCount];//For the short format
       cells = new Cell[cellCount];
-      cellsByVertexCount.put(totalVertexCount, cells);
       // Read all the vertexes
       for (int i = 0; i < totalVertexCount; i++) {
         UUID vertexId = null;
@@ -364,8 +372,12 @@ public class CellSerializer {
           orderedVertices[i] = new Vertex(i, latitude, longitude);
         }
         //System.out.println(i + " Getting vertex " + orderedVertices[i]);
+        reporter.incrementVerticesWritten();
       }
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
+      if(writer != null && reporter != null) {
+        reporter.reset();
+      }
 
       for (int c=0; c < cellCount; c++) {
         long uuidMSB = in.readLong();
@@ -382,6 +394,10 @@ public class CellSerializer {
             long vertexUuidLSB = in.readLong();
             UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
             vertex = vertexMap.get(vertexId);
+            short accessCount = vertex.access();
+            if(accessCount == 3) {
+              vertexMap.remove(vertexId);
+            }
           } else {
             int vertexIndex = in.readInt();
             //System.out.println("Reading int " + vertexIndex);
@@ -389,7 +405,13 @@ public class CellSerializer {
           }
           vertices[i] = vertex;
         }
-        cells[c] = new Cell(initiator == 0 ? initiatorKey82Percent : initiatorKey18Percent, cellId, vertices,  0, 0, 0);
+        Cell cell = new Cell(initiator == 0 ? initiatorKey82Percent : initiatorKey18Percent, cellId, vertices, 0, 0, 0);
+        if (writer != null) {
+          currentPersistentVertexIndex = writer.writeCell(currentPersistentVertexIndex, cell);
+        } else {
+          cells[c] = cell;
+        }
+        reporter.incrementCellsWritten();
 
         //System.out.println("R: " + cells[c]);
       }
@@ -403,7 +425,7 @@ public class CellSerializer {
       }
     }
 
-    return cellsByVertexCount;
+    return cells;
   }
 
   private String getLineString(CellSerializer serializer, Cell cell) {
@@ -432,42 +454,67 @@ public class CellSerializer {
   }
 
   public static void main(String[] args) throws IOException {
-    // Read cells from a long format file and write a short format file
-    //Read from long file
-    CellSerializer selfReader = new CellSerializer(true);
-    Map<Integer, Cell[]> cellsByVertexCount = selfReader.readCells();
-    Integer totalVertexCount = cellsByVertexCount.entrySet().iterator().next().getKey();
-    Cell[] longFormatCells = cellsByVertexCount.entrySet().iterator().next().getValue();
-    AtomicInteger savedVertexCount = new AtomicInteger();
+    ProgressReporter readReporter = null;
+    CellSerializer selfWriter = null;
+    CellSerializer selfReader = null;
+    CellSerializer deSerializer = null;
+    try {
+      // Read cells from a long format file and write a short format file
+      //Read from long file
+      readReporter = new ProgressReporter("ReadLong" + 0, 0, 0, null);
+      readReporter.start();
+      selfReader = new CellSerializer(args[0], args[1], readReporter, true);
 
-    //Write to short file
-    CellSerializer selfWriter = new CellSerializer(longFormatCells.length, totalVertexCount, new AtomicInteger(), savedVertexCount, new AtomicInteger(), false);
-    int currentPersistentVertexIndex = 0;
+      //Write to short file
+      readReporter.reset();
+      selfWriter = new CellSerializer(args[0], args[1], readReporter, false);
+      Cell[] longFormatCells = selfReader.readCells(selfWriter);
+      int currentPersistentVertexIndex = 0;
 
-    //System.out.println("\n");
-    for (Cell longFormatCell : longFormatCells) {
-      selfWriter.writeCell(longFormatCell, false);
-      //The consecutive vertices should be persisted.  The non-consecutive ones were either already
-      //persisted or will be later
-      Vertex[] vertices = longFormatCell.getVertices();
-      List<Vertex> verticesToPersist = new ArrayList(vertices.length);
-      for(Vertex vertex : vertices) {
-        int vertexIndex = vertex.getIndex();
-        if (vertexIndex == currentPersistentVertexIndex) {
-          currentPersistentVertexIndex++;
-          verticesToPersist.add(vertex);
-        }
+      //System.out.println("\n");
+      //for (Cell longFormatCell : longFormatCells) {
+        //currentPersistentVertexIndex = selfWriter.writeCell(currentPersistentVertexIndex, longFormatCell);
+      //}
+
+      //Read from short file and create KML
+      final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
+      if (outputKML) {
+        readReporter.reset();
+        deSerializer = new CellSerializer(args[0], args[1], readReporter, false);
+        deSerializer.outputKML(deSerializer, deSerializer.readCells());
       }
-      //System.out.println("W: " + longFormatCell);
-      selfWriter.writeVertices(verticesToPersist);
+    } catch (IOException e) {
+      e.printStackTrace();
+    } finally {
+      readReporter.stop();
+      if (selfReader != null) {
+        selfReader.close();
+      }
+      if (selfWriter != null) {
+        selfWriter.close();
+      }
+      if (deSerializer != null) {
+        deSerializer.close();
+      }
     }
+  }
 
-    //Read from short file and create KML
-    final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-    if (outputKML) {
-      CellSerializer deSerializer = new CellSerializer(false);
-      deSerializer.outputKML(deSerializer, deSerializer.readCells().entrySet().iterator().next().getValue());
+  private int writeCell(int currentPersistentVertexIndex, Cell cell) throws IOException {
+    writeCell(cell, false);
+    //The consecutive vertices should be persisted.  The non-consecutive ones were either already
+    //persisted or will be later
+    Vertex[] vertices = cell.getVertices();
+    List<Vertex> verticesToPersist = new ArrayList(vertices.length);
+    for(Vertex vertex : vertices) {
+      int vertexIndex = vertex.getIndex();
+      if (vertexIndex == currentPersistentVertexIndex) {
+        currentPersistentVertexIndex++;
+        verticesToPersist.add(vertex);
+      }
     }
+    //System.out.println("W: " + longFormatCell);
+    writeVertices(verticesToPersist);
+    return currentPersistentVertexIndex;
   }
 
 

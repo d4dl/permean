@@ -1,5 +1,6 @@
 package com.d4dl.permean.mesh;
 
+import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import java.nio.ByteBuffer;
@@ -9,19 +10,18 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
-import org.jetbrains.annotations.NotNull;
 
 public class CellGenerator {
   private final Position[] barycenters;
-  private final AtomicInteger barycenterCount;
+  private final ProgressReporter reporter;
   private final int sphereDivisions;
 
   private final int maxX;
   private final int maxY;
 
-  public CellGenerator(int cellCount, int sphereDivisions, AtomicInteger barycenterCount) {
+  public CellGenerator(int cellCount, int sphereDivisions, ProgressReporter reporter) {
     this.barycenters = new Position[cellCount];
-    this.barycenterCount = barycenterCount;
+    this.reporter = reporter;
     this.sphereDivisions = sphereDivisions;
     maxX = sphereDivisions * 2 - 1;
     maxY = sphereDivisions - 1;
@@ -34,7 +34,7 @@ public class CellGenerator {
 
   public void addBarycenter(int cellIndex, double φ, double λ) {
     this.barycenters[cellIndex] = new Position(φ, λ);
-    barycenterCount.incrementAndGet();
+    reporter.incrementBarycenterCount();
   }
 
 
@@ -87,7 +87,6 @@ public class CellGenerator {
   }
 
 
-  @NotNull
   private UUID createStableUUID(int[] sharedVertexKey) {
     ByteBuffer byteBuffer = ByteBuffer.allocate(32 * 3);
     IntBuffer intBuffer = byteBuffer.asIntBuffer();

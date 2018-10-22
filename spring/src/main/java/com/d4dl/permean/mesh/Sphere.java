@@ -6,23 +6,18 @@ import static java.lang.StrictMath.max;
 import static java.lang.StrictMath.min;
 import static java.lang.StrictMath.sqrt;
 
+import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
 import java.io.IOException;
 import java.text.NumberFormat;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
 import java.util.Stack;
-import java.util.Timer;
-import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
-import javax.media.jai.iterator.RandomIter;
-import org.jetbrains.annotations.NotNull;
 
 /**
  * Represents a sphere of cells arranged in an interpolated icosahedral geodesic pattern.
@@ -43,17 +38,10 @@ public class Sphere {
     public static int PEELS = 5;
     private final int divisions;
     private final DatabaseLoader databaseLoader;
+    ProgressReporter reporter;
 
-    private boolean iterating;
-    private boolean reportingPaused = false;
     private NumberFormat formatter = NumberFormat.getInstance();
 
-    private AtomicInteger populatedBaryCenterCount = new AtomicInteger(0);
-    private AtomicInteger builtCellCount = new AtomicInteger(0);
-    private AtomicInteger savedCellCount = new AtomicInteger(0);
-    private AtomicInteger savedVertexCount = new AtomicInteger(0);
-    private float cellWriteRate = 0;
-    private float vertexWriteRate = 0;
     private Stack<Cell> cellStack = new Stack();
     private boolean stackIsDone = false;
 
@@ -66,7 +54,6 @@ public class Sphere {
     public static final double L = acos(sqrt(5) / 5); // the spherical arclength of the icosahedron's edges.
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
 
-    Timer reportTimer = new Timer();
     double minLng = Integer.MAX_VALUE;
     double maxLng = Integer.MIN_VALUE;
     double minLat = Integer.MAX_VALUE;
@@ -75,18 +62,23 @@ public class Sphere {
     double maxArea = Integer.MIN_VALUE;
     private static double AVG_EARTH_RADIUS_MI = 3959;
     int goodDivisionsValue = 6833;
+    AtomicReference<Float> vertexWriteRate = new AtomicReference();
+    AtomicReference<Float> cellWriteRate = new AtomicReference();
+    private String fileOut;
+
 
     //The laptop can do this easily.  It produces 25 million regions of 7.7 square miles each
     int anotherGoodDivisionsValue = 1600;
     private CellGenerator cellGenerator;
 
-    public Sphere(int divisions, DatabaseLoader loader) {
+    public Sphere(String fileOut, int divisions, DatabaseLoader loader) {
         this.divisions = divisions;
         this.databaseLoader = loader;
+        this.fileOut = fileOut;
     }
 
     public static void main(String[] args) throws Exception {
-        new Sphere(Integer.parseInt(System.getProperty("sphere.divisions")), null).buildCells();
+        new Sphere(args[0], Integer.parseInt(System.getProperty("sphere.divisions")), null).buildCells();
     }
 
     public void buildCells() throws IOException {
@@ -96,41 +88,31 @@ public class Sphere {
         //You want 100,000,000 cells so they will be around 2 square miles each.
         cellCount = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
-        cellGenerator = new CellGenerator(cellCount, this.divisions, populatedBaryCenterCount);
+        reporter = new ProgressReporter("Sphere", cellCount, vertexCount, cellStack);
+        cellGenerator = new CellGenerator(cellCount, this.divisions, reporter);
         Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
         double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
         double cellArea = sphereRadius / cellCount;
         System.out.println("Initialized cells to: " + formatter.format(cellCount) + " cells.  Each one will average " + cellArea + " square miles.");
-        Timer rateTimer = new Timer();
-        TimerTask task = new TimerTask() {
-            @Override
-            public void run() {
-                percentInstance = NumberFormat.getPercentInstance();
-                report();
-            }
-        };
-        //  task will be scheduled after 5 sec delay
-        reportTimer.schedule(task, 1000, 1000);
+        reporter.start();
+
 
         try {
             populateBarycenters();//For all the ells, determine and set their barycenters
             System.out.println("Finished populating");
-            report();
-            createRateWriteTracker(rateTimer);
-            createCellStackWriter(reportTimer);
+
+            createCellStackWriter(reporter);
             buildCellStack(cellCount);
             stackIsDone = true;
         } finally {
             if (databaseLoader != null) {
                 databaseLoader.stop();
             }
-            rateTimer.cancel();
-            task.cancel();
         }
         //System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + cellCount + " cells.\nNow go run constraints.sql");
         final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-        CellSerializer deSerializer = new CellSerializer(true);
+        CellSerializer deSerializer = new CellSerializer(null, fileOut, reporter, true);
 
         if (outputKML) {
             while (!stackIsDone || !cellStack.empty()) {
@@ -140,36 +122,17 @@ public class Sphere {
                     e.printStackTrace();
                 }
             }
-            deSerializer.outputKML(deSerializer, deSerializer.readCells().entrySet().iterator().next().getValue());
+            reporter.reset();
+            deSerializer.outputKML(deSerializer, deSerializer.readCells());
         }
     }
 
-    private void createRateWriteTracker(Timer rateTimer) {
-        final float[] lastWriteCounts = new float[2];
-        TimerTask writeRateTracker = new TimerTask() {
-            @Override
-            public void run() {
-                int savedCells = savedCellCount.get();
-                float cellsSavedSinceLast = savedCells - lastWriteCounts[0];
-                cellWriteRate = cellsSavedSinceLast / 1000;
-                lastWriteCounts[0] = savedCells;
 
-                int savedVertexes = savedVertexCount.get();
-                float vertexesSavedSinceLast = savedVertexes - lastWriteCounts[1];
-                lastWriteCounts[1] = savedVertexes;
-                vertexWriteRate = vertexesSavedSinceLast / 1000;
-            }
-        };
-
-        //  count cells written every 10 seconds
-        rateTimer.schedule(writeRateTracker, new Date(), 1000);
-    }
-
-    private void createCellStackWriter(Timer reportTimer) {
+    private void createCellStackWriter(ProgressReporter progressReporter) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
             System.out.println("Thread running " + Thread.currentThread().getName());
-            CellSerializer serializer = new CellSerializer(cellCount, vertexCount, savedCellCount, savedVertexCount, builtCellCount);
+            CellSerializer serializer = new CellSerializer(null, fileOut, reporter);
             try {
                 while (!stackIsDone || !cellStack.empty()) {
                     if (!cellStack.empty()) {
@@ -182,7 +145,7 @@ public class Sphere {
                         }
                     }
                 }
-                reportTimer.cancel();
+                progressReporter.stop();
             } finally {
                 serializer.close();
             }
@@ -196,7 +159,7 @@ public class Sphere {
         IntStream parallel = IntStream.range(0, cellCount).parallel();
         parallel.forEach(f -> {
             double random = Math.random() * 100;
-            builtCellCount.incrementAndGet();
+            reporter.incrementBuiltCellCount();
             String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
             cellStack.push(cellGenerator.populateCell(f, initiator));
         });
@@ -210,36 +173,14 @@ public class Sphere {
                 if (databaseLoader != null) {
                     databaseLoader.add(cell);
                 }
-                savedCellCount.incrementAndGet();
             } catch (Exception e) {
                 throw new RuntimeException("Can't add", e);
             }
         }
         //databaseLoader.completeVertices();
-        report();
         System.out.println("Finished saving cells.  MaxLat = " + maxLat + " MinLat = " + minLat + " MaxLng = " + maxLng + " MinLng " + minLng);
     }
 
-    private void report() {
-        if(!reportingPaused) {
-            report("Populated", cellCount, populatedBaryCenterCount.get(), "Barycenters");
-            report("Built", cellCount, builtCellCount.get(), "Cells");
-            report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
-            report("Saved", cellCount, savedCellCount.get(), "Cells");
-            System.out.print(" Writing " + vertexWriteRate + " vertexes per ms.");
-            System.out.print(" Writing " + cellWriteRate + " cells per ms.");
-            //System.out.print(" " + cellStack.size() + " cells in the cell stack (" + percentInstance.format(((double)cellStack.size()) / ((double)cellCount) + ")."));
-            System.out.print(" " + cellStack.size() + " cells in the cell stack .");
-            System.out.print("\n");
-        }
-    }
-
-    private void report(String verb, int total, int count, String type) {
-        System.out.print(" " + verb + " " + formatter.format(count) +
-                " of " + formatter.format(total) +
-                " " + type + " (" + percentInstance.format((double) count / (double) total) +
-                ")");
-    }
 
 
     /**
@@ -379,7 +320,6 @@ public class Sphere {
     }
 
 
-    @NotNull
     private IntStream saveVertices(Cell[] cells) {
         IntStream parallel = IntStream.range(0, cells.length).parallel();
         //AreaFinder areaFinder = new AreaFinder();
@@ -395,7 +335,7 @@ public class Sphere {
                     minLng = min(minLng, vertex.getLongitude());
                     maxLng = max(maxLng, vertex.getLongitude());
                     databaseLoader.add(vertex);
-                    savedVertexCount.incrementAndGet();
+                    reporter.incrementVerticesWritten();
                 }
             }
         });
