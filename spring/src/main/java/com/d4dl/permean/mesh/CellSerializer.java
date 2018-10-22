@@ -368,7 +368,6 @@ public class CellSerializer {
           orderedVertices[i] = new Vertex(i, latitude, longitude);
         }
         //System.out.println(i + " Getting vertex " + orderedVertices[i]);
-        reporter.incrementVerticesWritten();
       }
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
       if(writer != null && reporter != null) {
@@ -412,7 +411,6 @@ public class CellSerializer {
         } else {
           cells[c] = cell;
         }
-        reporter.incrementCellsWritten();
 
         System.out.println("18%" + initiator18Count + " 82% " + initiator82Count + (initiator18Count / cellCount));
         //System.out.println("R: " + cells[c]);
