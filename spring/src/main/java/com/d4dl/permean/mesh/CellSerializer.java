@@ -52,7 +52,7 @@ public class CellSerializer {
           5 * (Integer.BYTES)
   );
 
-  private int vertexFileOffset;
+  private long vertexFileOffset;
   FileChannel cellWriter = null;
   FileChannel vertexWriter = null;
   //static double eightyTwoPercent;
@@ -67,9 +67,9 @@ public class CellSerializer {
     this.fileOut = fileOut;
     this.reporter = reporter;
     if (longFormat) {
-      this.vertexFileOffset = reporter.getVertexCount() * VERTEX_BYTE_SIZE_LONG + VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = (long)reporter.getVertexCount() * (long)VERTEX_BYTE_SIZE_LONG + (long)VERTEX_AND_CELL_COUNT_SIZE;
     } else {
-      this.vertexFileOffset = reporter.getVertexCount() * VERTEX_BYTE_SIZE_SHORT + VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = (long)reporter.getVertexCount() * (long)VERTEX_BYTE_SIZE_SHORT + (long)VERTEX_AND_CELL_COUNT_SIZE;
     }
     this.longFormat = longFormat;
     //this.eightyTwoPercent = totalCellCount * .82;

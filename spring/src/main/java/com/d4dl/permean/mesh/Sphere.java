@@ -1,15 +1,10 @@
 package com.d4dl.permean.mesh;
 
-import static java.lang.StrictMath.PI;
-import static java.lang.StrictMath.acos;
-import static java.lang.StrictMath.max;
-import static java.lang.StrictMath.min;
-import static java.lang.StrictMath.sqrt;
-
 import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
+
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.Stack;
@@ -18,6 +13,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
+
+import static java.lang.StrictMath.*;
 
 /**
  * Represents a sphere of cells arranged in an interpolated icosahedral geodesic pattern.
@@ -62,6 +59,7 @@ public class Sphere {
     double maxArea = Integer.MIN_VALUE;
     private static double AVG_EARTH_RADIUS_MI = 3959;
     int goodDivisionsValue = 6833;
+    // division=2555 results in: 65,280,252 cells.  Each one will average 3.017164889884918 square miles.
     AtomicReference<Float> vertexWriteRate = new AtomicReference();
     AtomicReference<Float> cellWriteRate = new AtomicReference();
     private String fileOut;
