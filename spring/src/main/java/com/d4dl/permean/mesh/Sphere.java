@@ -59,7 +59,7 @@ public class Sphere {
     double maxArea = Integer.MIN_VALUE;
     private static double AVG_EARTH_RADIUS_MI = 3959;
     int goodDivisionsValue = 6833;
-    // division=2555 results in: 65,280,252 cells.  Each one will average 3.017164889884918 square miles.
+    // division=2555 results in: 65,280,252 cells.  Each one will average 3.017164889884918 square miles.  130,560,500  Vertices
     AtomicReference<Float> vertexWriteRate = new AtomicReference();
     AtomicReference<Float> cellWriteRate = new AtomicReference();
     private String fileOut;

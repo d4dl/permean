@@ -229,10 +229,9 @@ public class CellSerializer {
       // OutputStream writer = new BufferedOutputStream());
       // Writer writer = new UTF8OutputStreamWriter(new GZIPOutputStream(new BufferedOutputStream(new FileOutputStream(raf.getFD()), 217447)));
 
-      File file = new File(fileOut);
-      System.out.println("Writing file to " + file.getAbsolutePath());
-      cellWriter = new RandomAccessFile(file, "rw").getChannel();
-      vertexWriter = new RandomAccessFile(file, "rw").getChannel();
+      System.out.println("Writing file to " + new File(fileOut).getAbsolutePath());
+      cellWriter = new RandomAccessFile(new File(fileOut), "rw").getChannel();
+      vertexWriter = new RandomAccessFile(new File(fileOut), "rw").getChannel();
       cellWriter.position(this.vertexFileOffset);
       //return new FileOutputStream(new File(this.CELLS_DIR, fileName));
     } catch (IOException e) {
@@ -368,6 +367,7 @@ public class CellSerializer {
           orderedVertices[i] = new Vertex(i, latitude, longitude);
         }
         //System.out.println(i + " Getting vertex " + orderedVertices[i]);
+        reporter.incrementVerticesWritten();
       }
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
       if(writer != null && reporter != null) {
@@ -411,10 +411,11 @@ public class CellSerializer {
         } else {
           cells[c] = cell;
         }
+        reporter.incrementCellsWritten();
 
-        System.out.println("18%" + initiator18Count + " 82% " + initiator82Count + (initiator18Count / cellCount));
         //System.out.println("R: " + cells[c]);
       }
+      System.out.println("18% " + initiator18Count + " 82% " + initiator82Count + " " + (initiator18Count / cellCount) + "%");
     } catch (IOException e) {
       e.printStackTrace();
     } finally {
