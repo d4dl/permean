@@ -66,16 +66,21 @@ public class CellSerializer {
     this.fileIn = fileIn;
     this.fileOut = fileOut;
     this.reporter = reporter;
-    if (longFormat) {
-      this.vertexFileOffset = (long)reporter.getVertexCount() * (long)VERTEX_BYTE_SIZE_LONG + (long)VERTEX_AND_CELL_COUNT_SIZE;
-    } else {
-      this.vertexFileOffset = (long)reporter.getVertexCount() * (long)VERTEX_BYTE_SIZE_SHORT + (long)VERTEX_AND_CELL_COUNT_SIZE;
-    }
     this.longFormat = longFormat;
+
     //this.eightyTwoPercent = totalCellCount * .82;
+  }
+
+  public void setCountsAndStartWriting(int cellCount, int vertexCount) {
+    if (longFormat) {
+      this.vertexFileOffset = (long) reporter.getVertexCount() * (long) VERTEX_BYTE_SIZE_LONG + (long) VERTEX_AND_CELL_COUNT_SIZE;
+    } else {
+      this.vertexFileOffset = (long) reporter.getVertexCount() * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
+    }
+    reporter.setCellCount(cellCount);
+    reporter.setVertexCount(vertexCount);
     initializeWriters();
     writeCounts(reporter.getCellCount(), reporter.getVertexCount());
-
   }
 
   private void writeCounts(int cellCount, int vertexCount) {
@@ -258,73 +263,6 @@ public class CellSerializer {
     }
   }
 
-
-  public void outputKML(CellSerializer serializer, Cell[] cells) throws IOException {
-    String fileName = "~/rings.kml";
-    File file = new File(fileName);
-    System.out.println("Writing to file: " + file.getAbsolutePath());
-    BufferedWriter writer = null;
-    try {
-      writer = new BufferedWriter(new FileWriter(file));
-      String[] styles = new String[]{"transBluePoly", "transRedPoly", "transGreenPoly", "transYellowPoly"};
-      writer.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" +
-          "<kml xmlns=\"http://www.opengis.net/kml/2.2\">\n" +
-          "  <Document>\n" +
-          "    <Style id=\"transRedPoly\">\n" +
-          "      <LineStyle>\n" +
-          "        <color>ff0000ff</color>\n" +
-          "      </LineStyle>\n" +
-          "      <PolyStyle>\n" +
-          "        <color>55ff0000</color>\n" +
-          "      </PolyStyle>\n" +
-          "    </Style>\n" +
-          "    <Style id=\"transYellowPoly\">\n" +
-          "      <LineStyle>\n" +
-          "        <color>7f00ffff</color>\n" +
-          "      </LineStyle>\n" +
-          "      <PolyStyle>\n" +
-          "        <color>5500ff00</color>\n" +
-          "      </PolyStyle>\n" +
-          "    </Style>\n" +
-          "    <Style id=\"transBluePoly\">\n" +
-          "      <LineStyle>\n" +
-          "        <color>7dffbb00</color>\n" +
-          "      </LineStyle>\n" +
-          "      <PolyStyle>\n" +
-          "        <color>550000ff</color>\n" +
-          "      </PolyStyle>\n" +
-          "    </Style>\n" +
-          "    <Style id=\"transGreenPoly\">\n" +
-          "      <LineStyle>\n" +
-          "        <color>7f00ff00</color>\n" +
-          "      </LineStyle>\n" +
-          "      <PolyStyle>\n" +
-          "        <color>5500ffff</color>\n" +
-          "      </PolyStyle>\n" +
-          "    </Style>\n"
-      );
-      int limit = cells.length;//20
-      for (int i = 0; i < limit; i++) {
-        int styleIndex = initiatorKey18Percent.equals(cells[i].getInitiator()) ? 0 : 2;
-        if (initiatorKey18Percent.equals(cells[i].getInitiator()))
-          writer.write("    <Placemark>\n" +
-              "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
-              "      <styleUrl>#" + styles[styleIndex] + "</styleUrl>\n" +
-              //"      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
-              getLineString(serializer, cells[i]) +
-              //getPolygon(serializer, cells[i]) +
-              "    </Placemark>\n");
-      }
-      writer.write("  </Document>\n" +
-          "</kml>");
-      System.out.println("Wrote to file: " + file.getAbsolutePath());
-    } catch (IOException e) {
-      e.printStackTrace();
-    } finally {
-      writer.close();
-    }
-  }
-
   public Cell[] readCells() {
     return readCells(null);
   }
@@ -345,9 +283,10 @@ public class CellSerializer {
     try {
       cellCount = in.readInt();
       totalVertexCount = in.readInt();
+      if (writer != null) {
+        writer.setCountsAndStartWriting(cellCount, totalVertexCount);
+      }
       Map<UUID, Vertex> vertexMap = new HashMap(totalVertexCount);// For the long format
-      reporter.setCellCount(cellCount);
-      reporter.setVertexCount(totalVertexCount);
       Vertex[] orderedVertices = new Vertex[totalVertexCount];//For the short format
       cells = new Cell[cellCount];
       // Read all the vertexes
@@ -429,30 +368,6 @@ public class CellSerializer {
     return cells;
   }
 
-  private String getLineString(CellSerializer serializer, Cell cell) {
-    return
-        "      <LineString>\n" +
-        "        <tesselate>1</tesselate>\n" +
-        "        <altitudeMode>relativeToGround</altitudeMode>\n" +
-        "        <coordinates>\n" +
-        serializer.kmlString(2000, cell) + "\n" +
-        "        </coordinates>\n" +
-        "      </LineString>\n";
-  }
-  private String getPolygon(CellSerializer serializer, Cell cell) {
-    return
-        "      <Polygon>\n" +
-        "      <outerBoundaryIs>\n" +
-        "      <LinearRing>\n" +
-        "        <tesselate>1</tesselate>\n" +
-        "        <altitudeMode>relativeToGround</altitudeMode>\n" +
-        "        <coordinates>\n" +
-        serializer.kmlString(2000, cell) + "\n" +
-        "        </coordinates>\n" +
-        "      </LinearRing>\n" +
-        "      </outerBoundaryIs>\n" +
-        "      </Polygon>\n";
-  }
 
   public static void main(String[] args) throws IOException {
     ProgressReporter readReporter = null;
@@ -482,7 +397,7 @@ public class CellSerializer {
       if (outputKML) {
         readReporter.reset();
         deSerializer = new CellSerializer(args[0], args[1], readReporter, false);
-        deSerializer.outputKML(deSerializer, deSerializer.readCells());
+        new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
       }
     } catch (IOException e) {
       e.printStackTrace();
@@ -493,9 +408,6 @@ public class CellSerializer {
       }
       if (selfWriter != null) {
         selfWriter.close();
-      }
-      if (deSerializer != null) {
-        deSerializer.close();
       }
     }
   }
