@@ -121,7 +121,7 @@ public class Sphere {
                 }
             }
             reporter.reset();
-            deSerializer.outputKML(deSerializer, deSerializer.readCells());
+            new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
         }
     }
 
