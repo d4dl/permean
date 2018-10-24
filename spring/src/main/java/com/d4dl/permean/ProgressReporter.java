@@ -10,7 +10,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import lombok.Data;
 
-@Data
 public class ProgressReporter {
 
 
@@ -44,21 +43,17 @@ public class ProgressReporter {
     this.vertexCount = vertexCount;
     this.cellStack = cellStack;
     percentInstance = NumberFormat.getPercentInstance();
-    rateTimer = new Timer();
-    createRateWriteTracker(rateTimer);
-
   }
 
   public void start() {
     report();
+    createRateWriteTracker(rateTimer);
     reportTask = new TimerTask() {
       @Override
       public void run() {
         report();
       }
     };
-
-    //  reportTask will be scheduled after 5 sec delay
     reportTimer.schedule(reportTask, 1000, 1000);
   }
 
@@ -155,5 +150,13 @@ public class ProgressReporter {
   }
   public void incrementCellsWritten() {
     this.savedCellCount.incrementAndGet();
+  }
+
+  public void setCellCount(int cellCount) {
+    this.cellCount = cellCount;
+  }
+
+  public void setVertexCount(int vertexCount) {
+    this.cellCount = vertexCount;
   }
 }

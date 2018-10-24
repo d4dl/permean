@@ -99,7 +99,7 @@ public class Sphere {
             populateBarycenters();//For all the ells, determine and set their barycenters
             System.out.println("Finished populating");
 
-            createCellStackWriter(reporter);
+            createCellStackWriter(reporter, cellCount, vertexCount);
             buildCellStack(cellCount);
             stackIsDone = true;
         } finally {
@@ -110,7 +110,7 @@ public class Sphere {
         //System.out.println("Min was: " + minArea + " max was " + maxArea);
         System.out.println("Created and saved " + cellCount + " cells.\nNow go run constraints.sql");
         final boolean outputKML = Boolean.parseBoolean(System.getProperty("outputKML"));
-        CellSerializer deSerializer = new CellSerializer(null, fileOut, reporter, true);
+        CellSerializer deSerializer = new CellSerializer(fileOut, fileOut, reporter, true);
 
         if (outputKML) {
             while (!stackIsDone || !cellStack.empty()) {
@@ -122,15 +122,17 @@ public class Sphere {
             }
             reporter.reset();
             new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
+            reporter.stop();
         }
     }
 
 
-    private void createCellStackWriter(ProgressReporter progressReporter) {
+    private void createCellStackWriter(ProgressReporter progressReporter, final int cellCount, final int vertexCount) {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
             System.out.println("Thread running " + Thread.currentThread().getName());
             CellSerializer serializer = new CellSerializer(null, fileOut, reporter);
+            serializer.setCountsAndStartWriting(cellCount, vertexCount);
             try {
                 while (!stackIsDone || !cellStack.empty()) {
                     if (!cellStack.empty()) {

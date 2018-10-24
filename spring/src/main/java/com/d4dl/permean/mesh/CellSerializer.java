@@ -17,8 +17,6 @@ public class CellSerializer {
 
   private final String fileIn;
   private final String fileOut;
-  private static final byte FIVE_VERTEX_CELL = 5;
-  private static final byte SIX_VERTEX_CELL = 6;
   public static final int VERTEX_BYTE_SIZE_LONG = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
   public static final int VERTEX_BYTE_SIZE_SHORT = 2 * Float.BYTES;//Short format is just the vertices in order
   private static final int VERTEX_AND_CELL_COUNT_SIZE = 8;
@@ -73,14 +71,14 @@ public class CellSerializer {
 
   public void setCountsAndStartWriting(int cellCount, int vertexCount) {
     if (longFormat) {
-      this.vertexFileOffset = (long) reporter.getVertexCount() * (long) VERTEX_BYTE_SIZE_LONG + (long) VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = (long) vertexCount * (long) VERTEX_BYTE_SIZE_LONG + (long) VERTEX_AND_CELL_COUNT_SIZE;
     } else {
-      this.vertexFileOffset = (long) reporter.getVertexCount() * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
+      this.vertexFileOffset = (long) vertexCount * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
     }
     reporter.setCellCount(cellCount);
     reporter.setVertexCount(vertexCount);
     initializeWriters();
-    writeCounts(reporter.getCellCount(), reporter.getVertexCount());
+    writeCounts(cellCount, vertexCount);
   }
 
   private void writeCounts(int cellCount, int vertexCount) {
@@ -89,9 +87,9 @@ public class CellSerializer {
           Integer.BYTES + Integer.BYTES
       );
       // Start with the number of cells
-      buffer.putInt(cellCount);
+      putInt(cellCount, buffer);
       // Then the number of vertices
-      buffer.putInt(vertexCount);
+      putInt(vertexCount, buffer);
 
       buffer.flip();
       vertexWriter.write(buffer);
@@ -129,21 +127,22 @@ public class CellSerializer {
       buffer = vertexCount == 5 ? FIVE_VERTEX_CELL_BUFFER_SHORT : SIX_VERTEX_CELL_BUFFER_SHORT;
     }
 
-    buffer.putLong(uuidMSB);
-    buffer.putLong(uuidLSB);
-    buffer.put((byte) (initiator.equals(initiatorKey18Percent) ? 1 : 0));//Then a byte 0 or 1 depending on which initiator it is
+    putLong(uuidMSB, buffer);
+    putLong(uuidLSB, buffer);
+    byte initiatorByte = (byte) (initiator.equals(initiatorKey18Percent) ? 1 : 0);
+    putByte(initiatorByte, buffer);//Then a byte 0 or 1 depending on which initiator it is
     // A byte here less than 6 indicates its a list of vertices, more than six its a cell
-    buffer.put(vertexCount == 5 ? FIVE_VERTEX_CELL : SIX_VERTEX_CELL); //Then a byte indicating how many vertices the cell has
+    putByte((byte) vertexCount, buffer); //Then a byte indicating how many vertices the cell has
 
     //Then the vertices a byte for the integer part before the decimal and 4 bytes for the fractional part
     Vertex[] vertices = cell.getVertices();
     for (Vertex vertex : vertices) {
       if (longFormat) {
-        buffer.putLong(vertex.getId().getMostSignificantBits());
-        buffer.putLong(vertex.getId().getLeastSignificantBits());
+        putLong(vertex.getId().getMostSignificantBits(), buffer);
+        putLong(vertex.getId().getLeastSignificantBits(), buffer);
       } else {
         //System.out.println("Putting int " + vertex.getIndex());
-        buffer.putInt(vertex.getIndex());
+        putInt(vertex.getIndex(), buffer);
       }
     }
     buffer.flip();
@@ -180,15 +179,15 @@ public class CellSerializer {
     for (Vertex vertex : vertices) {
       //Don't write duplicates
       if(longFormat) {
-        buffer.putLong(vertex.getId().getMostSignificantBits());
-        buffer.putLong(vertex.getId().getLeastSignificantBits());
+        putLong(vertex.getId().getMostSignificantBits(), buffer);
+        putLong(vertex.getId().getLeastSignificantBits(), buffer);
       }
 
       //System.out.println(savedVertexCount + " Putting vertex " + vertex);
       float latitude = vertex.getLatitude();
-      buffer.putFloat(latitude);
+      putFloat(buffer, latitude);
       float longitude = vertex.getLongitude();
-      buffer.putFloat(longitude);
+      putFloat(buffer, longitude);
       reporter.incrementVerticesWritten();
     }
     buffer.flip();
@@ -263,6 +262,7 @@ public class CellSerializer {
     }
   }
 
+
   public Cell[] readCells() {
     return readCells(null);
   }
@@ -276,13 +276,11 @@ public class CellSerializer {
     int initiator18Count = 0;
     int currentPersistentVertexIndex = 0;
     DataInputStream in = initializeReader();
-    int cellCount = 0;
-    int totalVertexCount = 0;
     Cell[] cells = null;
     // Preserve the order the vertices are read in so the indexes are correct
     try {
-      cellCount = in.readInt();
-      totalVertexCount = in.readInt();
+      int cellCount = readInt(in);
+      int totalVertexCount = readInt(in);
       if (writer != null) {
         writer.setCountsAndStartWriting(cellCount, totalVertexCount);
       }
@@ -293,12 +291,12 @@ public class CellSerializer {
       for (int i = 0; i < totalVertexCount; i++) {
         UUID vertexId = null;
         if (longFormat) {
-          long vertexUuidMSB = in.readLong();
-          long vertexUuidLSB = in.readLong();
+          long vertexUuidMSB = readLong(in);
+          long vertexUuidLSB = readLong(in);
           vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
         }
-        float latitude = in.readFloat();
-        float longitude = in.readFloat();
+        float latitude = readFloat(in);
+        float longitude = readFloat(in);
         if (longFormat) {
           // The uuids can actually just be generated.  See stableUUID
           vertexMap.put(vertexId, new Vertex(i, latitude, longitude));
@@ -314,18 +312,18 @@ public class CellSerializer {
       }
 
       for (int c=0; c < cellCount; c++) {
-        long uuidMSB = in.readLong();
-        long uuidLSB = in.readLong();
+        long uuidMSB = readLong(in);
+        long uuidLSB = readLong(in);
         UUID cellId = new UUID(uuidMSB, uuidLSB);
-        int initiator = in.readByte();// 18% or 72%
-        int vertexCount = in.readByte();
+        int initiator = readByte(in);
+        int vertexCount = readByte(in);
         Vertex[] vertices = new Vertex[vertexCount];
         //Read the vertex ids for the cell
         for (int i = 0; i < vertexCount; i++) {
           Vertex vertex;
           if (longFormat) {
-            long vertexUuidMSB = in.readLong();
-            long vertexUuidLSB = in.readLong();
+            long vertexUuidMSB = readLong(in);
+            long vertexUuidLSB = readLong(in);
             UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
             vertex = vertexMap.get(vertexId);
             short accessCount = vertex.access();
@@ -333,7 +331,7 @@ public class CellSerializer {
               vertexMap.remove(vertexId);
             }
           } else {
-            int vertexIndex = in.readInt();
+            int vertexIndex = readInt(in);
             //System.out.println("Reading int " + vertexIndex);
             vertex = orderedVertices[vertexIndex];
           }
@@ -409,6 +407,9 @@ public class CellSerializer {
       if (selfWriter != null) {
         selfWriter.close();
       }
+      if (deSerializer != null) {
+        deSerializer.close();
+      }
     }
   }
 
@@ -430,5 +431,51 @@ public class CellSerializer {
     return currentPersistentVertexIndex;
   }
 
+
+
+  private ByteBuffer putByte(byte value, ByteBuffer buffer) {
+    //System.out.println("OUT 8 " + value);
+    return buffer.put(value);
+  }
+
+  private void putInt(int value, ByteBuffer buffer) {
+    //System.out.println("OUT 32F  " + value);
+    buffer.putInt(value);
+  }
+
+  private void putLong(long value, ByteBuffer buffer) {
+    //System.out.println("OUT 64 " + value);
+    buffer.putLong(value);
+  }
+
+  private void putFloat(ByteBuffer buffer, float value) {
+    //System.out.println("OUT 32 " + value);
+    buffer.putFloat(value);
+  }
+
+
+  private int readByte(DataInputStream in) throws IOException {
+    int value = in.readByte();
+    //System.out.println("IN 8 " + value);
+    return value;
+  }
+
+  private int readInt(DataInputStream in) throws IOException {
+    int value = in.readInt();
+    //System.out.println("IN 32 " + value);
+    return value;
+  }
+
+  private long readLong(DataInputStream in) throws IOException {
+    long value = in.readLong();
+    //System.out.println("IN 64 " + value);
+    return value;
+  }
+
+  private float readFloat(DataInputStream in) throws IOException {
+    float value = in.readFloat();
+    //System.out.println("IN 32F " + value);
+    return value;
+  }
 
 }
