@@ -19,10 +19,10 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 public class KMLWriter {
 
   public void outputKML(CellSerializer serializer, Cell[] cells) throws IOException {
-   outputKML(serializer, cells, false);
+   outputKML(serializer, cells, false, -1);
   }
 
- public void outputKML(CellSerializer serializer, Cell[] cells, boolean initiator18Only) throws IOException {
+ public void outputKML(CellSerializer serializer, Cell[] cells, boolean initiator18Only, int limit) throws IOException {
     String fileName = "~/rings.kml";
     File file = new File(fileName);
     System.out.println("Writing to file: " + file.getAbsolutePath());
@@ -66,8 +66,8 @@ public class KMLWriter {
           "      </PolyStyle>\n" +
           "    </Style>\n"
       );
-      int limit = cells.length;//20
-      for (int i = 0; i < limit; i++) {
+      int length = limit < 0 ? cells.length : limit;
+      for (int i = 0; i < length; i++) {
         int styleIndex = initiatorKey18Percent.equals(cells[i].getInitiator()) ? 0 : 2;
         if (!initiator18Only || initiatorKey18Percent.equals(cells[i].getInitiator()))
           writer.write("    <Placemark>\n" +

@@ -395,7 +395,7 @@ public class CellSerializer {
       if (outputKML) {
         readReporter.reset();
         deSerializer = new CellSerializer(args[0], args[1], readReporter, false);
-        new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
+        new KMLWriter().outputKML(deSerializer, deSerializer.readCells(), false, 1000);
       }
     } catch (IOException e) {
       e.printStackTrace();

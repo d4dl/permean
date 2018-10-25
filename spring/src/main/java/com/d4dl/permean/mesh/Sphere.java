@@ -7,6 +7,9 @@ import com.d4dl.permean.data.Vertex;
 
 import java.io.IOException;
 import java.text.NumberFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Stack;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -99,9 +102,53 @@ public class Sphere {
             populateBarycenters();//For all the ells, determine and set their barycenters
             System.out.println("Finished populating");
 
-            createCellStackWriter(reporter, cellCount, vertexCount);
-            buildCellStack(cellCount);
-            stackIsDone = true;
+            String outputKMLSampleSizeProperty = System.getProperty("outputKMLSampleSize");
+            String latLngBoundsProperty = System.getProperty("latLngBounds");
+            //Just output some cells to see what the kml looks like
+            if (latLngBoundsProperty != null) {
+                String[] latLngBounds = latLngBoundsProperty.split(",");
+                float lat1 = Float.parseFloat(latLngBounds[0]);
+                float lng1 = Float.parseFloat(latLngBounds[1]);
+                float lat2 = Float.parseFloat(latLngBounds[2]);
+                float lng2 = Float.parseFloat(latLngBounds[3]);
+                if(lat2 < lat1) {
+                    float tmp = lat1;
+                    lat1 = lat2;
+                    lat2 = tmp;
+                }
+                if(lng2 < lng1) {
+                    float tmp = lng1;
+                    lng1 = lng2;
+                    lng2 = tmp;
+                }
+
+                List<Cell> cellList = new ArrayList();
+                for(int i=0; i < cellCount; i++) {
+                  Position barycenter = cellGenerator.getBarycenter(i);
+                  double barycenterLat = barycenter.getLat();
+                  double barycenterLng = barycenter.getLng();
+                  if (lat1 < barycenterLat && barycenterLat < lat2 &&
+                      lng1 < barycenterLng && barycenterLng < lng2) {
+                      cellList.add(cellGenerator.populateCell(i, "nobody"));
+                  }
+                }
+                CellSerializer nerializer = new CellSerializer(fileOut, fileOut, reporter, true);
+                new KMLWriter().outputKML(nerializer, cellList.toArray(new Cell[0]));
+            } else if (outputKMLSampleSizeProperty != null) {
+              int outKMLSampleSize = Integer.parseInt(outputKMLSampleSizeProperty);
+              Cell[] cells = new Cell[outKMLSampleSize];
+              IntStream parallel = IntStream.range(0, cells.length).parallel();
+              parallel.forEach(f -> {
+                  reporter.incrementBuiltCellCount();
+                  cells[f] = cellGenerator.populateCell(f, "nobody");
+              });
+              CellSerializer nerializer = new CellSerializer(fileOut, fileOut, reporter, true);
+              new KMLWriter().outputKML(nerializer, cells);
+            } else {
+                createCellStackWriter(reporter, cellCount, vertexCount);
+                buildCellStack(cellCount);
+                stackIsDone = true;
+            }
         } finally {
             if (databaseLoader != null) {
                 databaseLoader.stop();
@@ -122,8 +169,8 @@ public class Sphere {
             }
             reporter.reset();
             new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
-            reporter.stop();
         }
+        reporter.stop();
     }
 
 
