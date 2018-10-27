@@ -32,7 +32,7 @@ public class LongFormatCellFileReader extends DataInputCellReader {
       // The uuids can actually just be generated.  See stableUUID
       vertexMap.put(vertexId, new Vertex(i, latitude, longitude));
       //System.out.println(i + " Getting vertex " + orderedVertices[i]);
-      reporter.incrementVerticesWritten();
+      incrementVerticesWritten();
     }
   }
 

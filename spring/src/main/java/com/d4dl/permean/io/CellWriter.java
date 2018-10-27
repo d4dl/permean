@@ -28,7 +28,7 @@ public abstract class CellWriter extends DataIO {
       if (writeVertices) {
         writeVertices(cell);
       }
-      reporter.incrementCellsWritten();
+      incrementCellsWritten();
       writeCell(cell.getInitiator(), cell);
     } catch (IOException e) {
       e.printStackTrace();
@@ -72,8 +72,8 @@ public abstract class CellWriter extends DataIO {
   public void setCountsAndStartWriting(int cellCount, int vertexCount) {
     long vertexFileOffset = getVertexFileOffset(vertexCount);
 
-    reporter.setCellCount(cellCount);
-    reporter.setVertexCount(vertexCount);
+    setCellCount(cellCount);
+    setVertexCount(vertexCount);
     initializeWriters(vertexFileOffset);
     writeCounts(cellCount, vertexCount);
   }
@@ -117,7 +117,7 @@ public abstract class CellWriter extends DataIO {
 
     for (Vertex vertex : vertices) {
       writeVertex(buffer, vertex);
-      reporter.incrementVerticesWritten();
+      incrementVerticesWritten();
     }
     buffer.flip();
     vertexFileChannel.write(buffer);

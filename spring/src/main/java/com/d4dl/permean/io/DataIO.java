@@ -8,7 +8,7 @@ import java.nio.channels.FileChannel;
 
 public class DataIO {
 
-  protected final ProgressReporter reporter;
+  private ProgressReporter reporter;
 
 
   public static final int VERTEX_BYTE_SIZE_LONG = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
@@ -16,8 +16,10 @@ public class DataIO {
   public static final int VERTEX_AND_CELL_COUNT_SIZE = 8;
 
   public DataIO(String reporterName) {
-    reporter = new ProgressReporter(reporterName, 0, 0, null);
-    reporter.start();
+    if (reporterName != null) {
+      reporter = new ProgressReporter(reporterName, 0, 0, null);
+      reporter.start();
+    }
   }
 
   public static ByteBuffer SIX_VERTEX_CELL_BUFFER_LONG = ByteBuffer.allocateDirect(
@@ -49,9 +51,42 @@ public class DataIO {
   );
 
 
+
+  protected void incrementVerticesWritten() {
+    if (reporter != null) {
+      reporter.incrementVerticesWritten();
+    }
+  }
+
+  protected void incrementCellsWritten() {
+    if (reporter != null) {
+      reporter.incrementCellsWritten();
+    }
+  }
+
+  protected void reset() {
+    if (reporter != null) {
+      reporter.reset();
+    }
+  }
+
+  protected void setCellCount(int cellCount) {
+    if (reporter != null) {
+      reporter.setCellCount(cellCount);
+    }
+  }
+
+  protected void setVertexCount(int totalVertexCount) {
+    if (reporter != null) {
+      reporter.setVertexCount(totalVertexCount);
+    }
+  }
+
   public void close() {
-    reporter.report();
-    reporter.stop();
+    if (reporter != null) {
+      reporter.report();
+      reporter.stop();
+    }
   }
 
 

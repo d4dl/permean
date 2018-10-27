@@ -191,7 +191,7 @@ public class Sphere {
         ExecutorService executor = Executors.newSingleThreadExecutor();
         executor.submit(() -> {
             System.out.println("Thread running " + Thread.currentThread().getName());
-            CellWriter writer = new LongFormatCellFileWriter("CellStackWriter", fileOut);
+            CellWriter writer = new LongFormatCellFileWriter(null, fileOut);
             writer.setCountsAndStartWriting(cellCount, vertexCount);
             try {
                 while (!stackIsDone || !cellStack.empty()) {

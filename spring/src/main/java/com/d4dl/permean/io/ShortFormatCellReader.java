@@ -38,7 +38,7 @@ public class ShortFormatCellReader extends DataInputCellReader {
       float longitude = readFloat();
       orderedVertices[i] = new Vertex(i, latitude, longitude);
       //System.out.println(i + " Getting vertex " + orderedVertices[i]);
-      reporter.incrementVerticesWritten();
+      incrementVerticesWritten();
     }
   }
 

@@ -37,10 +37,8 @@ public abstract class CellReader extends DataIO {
     try {
       int cellCount = readCellCount();
       int totalVertexCount = readVertexCount();
-      if (reporter != null) {
-        reporter.setVertexCount(totalVertexCount);
-        reporter.setCellCount(cellCount);
-      }
+      setVertexCount(totalVertexCount);
+      setCellCount(cellCount);
       cells = new Cell[cellCount];
       if (writer != null) {
         writer.setCountsAndStartWriting(cellCount, totalVertexCount);
@@ -48,8 +46,8 @@ public abstract class CellReader extends DataIO {
       initializeVertices(totalVertexCount);
 
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
-      if(writer != null && reporter != null) {
-        reporter.reset();
+      if(writer != null) {
+        reset();
       }
 
       for (int c=0; c < cellCount; c++) {
@@ -59,7 +57,7 @@ public abstract class CellReader extends DataIO {
         } else if (!validateOnly) {
           cells[c] = cell;
         }
-        reporter.incrementCellsWritten();
+        incrementCellsWritten();
 
         //System.out.println("R: " + cells[c]);
       }
@@ -70,6 +68,7 @@ public abstract class CellReader extends DataIO {
 
     return cells;
   }
+
 
   protected abstract Cell nextCell() throws IOException;
 
