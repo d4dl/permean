@@ -8,12 +8,15 @@ import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
 import java.util.ArrayList;
 import java.util.List;
 
 public abstract class CellWriter extends DataIO {
 
-  String fileOut;
+  protected String fileOut;
+  protected FileChannel cellFileChannel = null;
+  protected FileChannel vertexFileChannel = null;
 
   protected CellWriter(String reporterName, String fileOut) {
     super(reporterName);
@@ -180,5 +183,24 @@ public abstract class CellWriter extends DataIO {
   protected void putFloat(ByteBuffer buffer, float value) {
     //System.out.println("OUT 32 " + value);
     buffer.putFloat(value);
+  }
+
+  public void close() {
+    try {
+      if (cellFileChannel != null) {
+        cellFileChannel.close();
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+
+    try {
+      if (vertexFileChannel != null) {
+        vertexFileChannel.close();
+      }
+    } catch (IOException e) {
+      e.printStackTrace();
+    }
+    super.close();
   }
 }

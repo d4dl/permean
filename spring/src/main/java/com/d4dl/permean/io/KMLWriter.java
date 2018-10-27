@@ -1,4 +1,4 @@
-package com.d4dl.permean.mesh;
+package com.d4dl.permean.io;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
@@ -6,14 +6,10 @@ import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 
 import com.d4dl.permean.data.Vertex;
-import com.d4dl.permean.io.CellReader;
-import com.d4dl.permean.io.ShortFormatCellReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-
-import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
 /**
  * Created by joshuadeford on 10/23/18.
@@ -147,7 +143,7 @@ public class KMLWriter {
    */
   public static void main(String[] args) throws IOException {
     ProgressReporter readReporter = null;
-    CellReader cellReader = new ShortFormatCellReader("KMLReader", args[0]);
+    CellReader cellReader = new ShortFormatMappedCellReader("KMLReader", args[0]);
     try {
       final boolean initiator18Only = Boolean.parseBoolean(System.getProperty("initiator18Only"));
       readReporter = new ProgressReporter("Read For KML " + 0, 0, 0, null);

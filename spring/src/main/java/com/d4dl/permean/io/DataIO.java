@@ -9,8 +9,6 @@ import java.nio.channels.FileChannel;
 public class DataIO {
 
   protected final ProgressReporter reporter;
-  protected FileChannel cellFileChannel = null;
-  protected FileChannel vertexFileChannel = null;
 
 
   public static final int VERTEX_BYTE_SIZE_LONG = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
@@ -52,21 +50,6 @@ public class DataIO {
 
 
   public void close() {
-    try {
-      if (cellFileChannel != null) {
-        cellFileChannel.close();
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
-
-    try {
-      if (vertexFileChannel != null) {
-        vertexFileChannel.close();
-      }
-    } catch (IOException e) {
-      e.printStackTrace();
-    }
     reporter.report();
     reporter.stop();
   }
