@@ -68,6 +68,7 @@ public class Sphere {
     AtomicReference<Float> vertexWriteRate = new AtomicReference();
     AtomicReference<Float> cellWriteRate = new AtomicReference();
     private String fileOut;
+    boolean stackProcessingPaused = false;
 
 
     //The laptop can do this easily.  It produces 25 million regions of 7.7 square miles each
@@ -92,6 +93,8 @@ public class Sphere {
         cellCount = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
         reporter = new ProgressReporter("CellGenerator", cellCount, vertexCount, cellStack);
+        reporter.setCellCount(cellCount);
+        reporter.setVertexCount(vertexCount);
         cellGenerator = new CellGenerator(cellCount, this.divisions, reporter);
         Object averageValue = new Integer[]{34, 93, 90, 45, 83, 94};
         double sphereRadius = Math.pow(AVG_EARTH_RADIUS_MI, 2) * 4 * PI;
@@ -217,12 +220,28 @@ public class Sphere {
     public void buildCellStack(int cellCount) {
         System.out.println("Building cells.");
         IntStream parallel = IntStream.range(0, cellCount).parallel();
-        parallel.forEach(f -> {
-            double random = Math.random() * 100;
-            reporter.incrementBuiltCellCount();
-            String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
-            cellStack.push(cellGenerator.populateCell(f, initiator));
-        });
+        //parallel.forEach(f -> {
+        for (int f=0; f < cellCount;) {
+          if (stackProcessingPaused) {
+              try {
+                  Thread.sleep(1000);
+              } catch (InterruptedException e) {
+                  e.printStackTrace();
+              }
+              if (cellStack.size() < 1000) {
+                  stackProcessingPaused = false;
+              }
+          } else {
+              double random = Math.random() * 100;
+              reporter.incrementBuiltCellCount();
+              String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
+              cellStack.push(cellGenerator.populateCell(f++, initiator));
+              if (cellStack.size() > 1000000) {
+                  stackProcessingPaused = true;
+              }
+          }
+        }
+        //);
         System.out.println("Finished building cells.");
     }
 
