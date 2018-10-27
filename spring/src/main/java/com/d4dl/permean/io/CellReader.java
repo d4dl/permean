@@ -10,20 +10,17 @@ import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.UUID;
 import java.util.zip.GZIPInputStream;
+import org.jetbrains.annotations.NotNull;
 
-public class CellReader extends DataIO {
+public abstract class CellReader extends DataIO {
 
   private DataInputStream in;
-  private final boolean longFormat;
 
-  protected CellReader(String reporterName, String fileIn, boolean longFormat) {
+  protected CellReader(String reporterName, String fileIn) {
     super(reporterName);
     in = initializeReader(fileIn);
-    this.longFormat = longFormat;
   }
 
   private DataInputStream initializeReader(String fileIn) {
@@ -85,31 +82,12 @@ public class CellReader extends DataIO {
         reporter.setVertexCount(totalVertexCount);
         reporter.setCellCount(cellCount);
       }
+      cells = new Cell[cellCount];
       if (writer != null) {
         writer.setCountsAndStartWriting(cellCount, totalVertexCount);
       }
-      Map<UUID, Vertex> vertexMap = new HashMap(totalVertexCount);// For the long format
-      Vertex[] orderedVertices = new Vertex[totalVertexCount];//For the short format
-      cells = new Cell[cellCount];
-      // Read all the vertexes
-      for (int i = 0; i < totalVertexCount; i++) {
-        UUID vertexId = null;
-        if (longFormat) {
-          long vertexUuidMSB = readLong();
-          long vertexUuidLSB = readLong();
-          vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
-        }
-        float latitude = readFloat();
-        float longitude = readFloat();
-        if (longFormat) {
-          // The uuids can actually just be generated.  See stableUUID
-          vertexMap.put(vertexId, new Vertex(i, latitude, longitude));
-        } else {
-          orderedVertices[i] = new Vertex(i, latitude, longitude);
-        }
-        //System.out.println(i + " Getting vertex " + orderedVertices[i]);
-        reporter.incrementVerticesWritten();
-      }
+      initializeVertices(totalVertexCount);
+
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
       if(writer != null && reporter != null) {
         reporter.reset();
@@ -124,23 +102,9 @@ public class CellReader extends DataIO {
         Vertex[] vertices = new Vertex[vertexCount];
         //Read the vertex ids for the cell
         for (int i = 0; i < vertexCount; i++) {
-          Vertex vertex;
-          if (longFormat) {
-            long vertexUuidMSB = readLong();
-            long vertexUuidLSB = readLong();
-            UUID vertexId = new UUID(vertexUuidMSB, vertexUuidLSB);
-            vertex = vertexMap.get(vertexId);
-            short accessCount = vertex.access();
-            if (accessCount == 3) {
-              vertexMap.remove(vertexId);
-            }
-          } else {
-            int vertexIndex = readInt();
-            //System.out.println("Reading int " + vertexIndex);
-            vertex = orderedVertices[vertexIndex];
-          }
-          vertices[i] = vertex;
+          vertices[i] = nextVertex();
         }
+
         if (initiator == 0) {
           initiator82Count++;
         } else {
@@ -169,6 +133,11 @@ public class CellReader extends DataIO {
 
     return cells;
   }
+
+  protected abstract Vertex nextVertex() throws IOException;
+
+
+  protected abstract void initializeVertices(int vertexCount) throws IOException;
 
   public void close() {
     try {
