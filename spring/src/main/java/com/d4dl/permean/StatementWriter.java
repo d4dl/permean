@@ -17,8 +17,8 @@ import java.util.List;
 public class StatementWriter {
     private final int parentSize;
     private final Writer joinWriter;
-    private final Writer cellWriter;
-    private final Writer vertexWriter;
+    private final Writer cellFileChannel;
+    private final Writer vertexFileChannel;
     private final boolean writeFiles;
     List<Cell> cells = new ArrayList();
     List<Vertex> vertices = new ArrayList();
@@ -45,8 +45,8 @@ public class StatementWriter {
         this.writeFiles = writeFiles;
         String threadName = Thread.currentThread().getName();
         joinWriter = getFileWriter(threadName, "cell_vertices");
-        cellWriter = getFileWriter(threadName, "cells");
-        vertexWriter = getFileWriter(threadName, "vertices");
+        cellFileChannel = getFileWriter(threadName, "cells");
+        vertexFileChannel = getFileWriter(threadName, "vertices");
         //joinConnection = getConnection(threadName, "cell_vertices");
         cellConnection = getConnection();
         //vertexConnection = getConnection(threadName, "vertices");
@@ -56,8 +56,8 @@ public class StatementWriter {
         try {
             if(joinWriter != null) {
                 joinWriter.close();
-                cellWriter.close();
-                vertexWriter.close();
+                cellFileChannel.close();
+                vertexFileChannel.close();
             }
         } catch (IOException e) {
             System.out.println("Closing a writer that's already closed.");

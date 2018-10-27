@@ -53,8 +53,8 @@ public class DatabaseLoader implements CommandLineRunner {
         if (System.getProperty("writeFiles") == null) {
             System.out.println("Property writeFiles is required. If true sql update files will be produced.");
         }
-        if (System.getProperty("outputKML") == null) {
-            System.out.println("Property outputKML is required.  If true a kml file will be created.");
+        if (System.getProperty("kmlOutFile") == null) {
+            System.out.println("Property kmlOutFile is required.  If true a kml file will be created.");
         }
 
         if(parentSize != null) {

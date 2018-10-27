@@ -5,6 +5,9 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 
+import com.d4dl.permean.data.Vertex;
+import com.d4dl.permean.io.CellReader;
+import com.d4dl.permean.io.ShortFormatCellReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -18,12 +21,17 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
 public class KMLWriter {
 
-  public void outputKML(CellSerializer serializer, Cell[] cells) throws IOException {
-   outputKML(serializer, cells, false, -1);
+  private final String fileName;
+
+  public KMLWriter(String kmlOutFile) {
+    this.fileName = kmlOutFile;
   }
 
- public void outputKML(CellSerializer serializer, Cell[] cells, boolean initiator18Only, int limit) throws IOException {
-    String fileName = "~/rings.kml";
+  public void outputKML(Cell[] cells) throws IOException {
+   outputKML(cells, false, -1);
+  }
+
+ public void outputKML(Cell[] cells, boolean initiator18Only, int limit) throws IOException {
     File file = new File(fileName);
     System.out.println("Writing to file: " + file.getAbsolutePath());
     BufferedWriter writer = null;
@@ -66,7 +74,7 @@ public class KMLWriter {
           "      </PolyStyle>\n" +
           "    </Style>\n"
       );
-      int length = limit < 0 ? cells.length : limit;
+      int length = limit < 0 ? cells.length : Math.min(cells.length, limit);
       for (int i = 0; i < length; i++) {
         int styleIndex = initiatorKey18Percent.equals(cells[i].getInitiator()) ? 0 : 2;
         if (!initiator18Only || initiatorKey18Percent.equals(cells[i].getInitiator()))
@@ -74,7 +82,7 @@ public class KMLWriter {
               "      <name>" + cells[i] + " " + cells[i].getArea() + "</name>\n" +
               "      <styleUrl>#" + styles[styleIndex] + "</styleUrl>\n" +
               //"      <styleUrl>#" + styles[0] + "</styleUrl>\n" +
-              getLineString(serializer, cells[i]) +
+              getLineString(cells[i]) +
               //getPolygon(serializer, cells[i]) +
               "    </Placemark>\n");
       }
@@ -88,17 +96,18 @@ public class KMLWriter {
     }
   }
 
-  private String getLineString(CellSerializer serializer, Cell cell) {
+  private String getLineString(Cell cell) {
     return
         "      <LineString>\n" +
             "        <tesselate>1</tesselate>\n" +
             "        <altitudeMode>relativeToGround</altitudeMode>\n" +
             "        <coordinates>\n" +
-            serializer.kmlString(2000, cell) + "\n" +
+            kmlString(2000, cell) + "\n" +
             "        </coordinates>\n" +
             "      </LineString>\n";
   }
-  private String getPolygon(CellSerializer serializer, Cell cell) {
+
+  private String getPolygon(Cell cell) {
     return
         "      <Polygon>\n" +
             "      <outerBoundaryIs>\n" +
@@ -106,7 +115,7 @@ public class KMLWriter {
             "        <tesselate>1</tesselate>\n" +
             "        <altitudeMode>relativeToGround</altitudeMode>\n" +
             "        <coordinates>\n" +
-            serializer.kmlString(2000, cell) + "\n" +
+            kmlString(2000, cell) + "\n" +
             "        </coordinates>\n" +
             "      </LinearRing>\n" +
             "      </outerBoundaryIs>\n" +
@@ -114,23 +123,43 @@ public class KMLWriter {
   }
 
 
+
+
+  public String kmlString(int height, Cell cell) {
+    Vertex[] vertices = cell.getVertices();
+    StringBuffer buff = new StringBuffer();
+    for (int i = 0; i < vertices.length; i++) {
+      if(i > 0) {
+        buff.append("\n");
+      }
+      buff.append(vertices[i].kmlString(height));
+    }
+    buff.append("\n");
+    buff.append(vertices[0].kmlString(height));//Make the first one also last.
+    return buff.toString();
+  }
+
+
+  /**
+   * Write a kml file from a short format cell file
+   * @param args
+   * @throws IOException
+   */
   public static void main(String[] args) throws IOException {
     ProgressReporter readReporter = null;
-    CellSerializer deSerializer = null;
+    CellReader cellReader = new ShortFormatCellReader("KMLReader", args[0]);
     try {
+      final boolean initiator18Only = Boolean.parseBoolean(System.getProperty("initiator18Only"));
       readReporter = new ProgressReporter("Read For KML " + 0, 0, 0, null);
       readReporter.start();
       //Read from short file and create KML
       readReporter.reset();
-      deSerializer = new CellSerializer(args[0], args[1], readReporter, false);
-      new KMLWriter().outputKML(deSerializer, deSerializer.readCells());
+      new KMLWriter(args[1]).outputKML(cellReader.readCells(null), initiator18Only, -1);
     } catch (IOException e) {
       e.printStackTrace();
     } finally {
       readReporter.stop();
-      if (deSerializer != null) {
-        deSerializer.close();
-      }
+      cellReader.close();
     }
   }
 }

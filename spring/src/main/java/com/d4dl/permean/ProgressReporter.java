@@ -6,9 +6,6 @@ import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-
-import lombok.Data;
 
 public class ProgressReporter {
 
@@ -65,7 +62,7 @@ public class ProgressReporter {
     report();
   }
 
-  private void report() {
+  public void report() {
     if(!reportingPaused) {
       System.out.print(name + " ");
       if (populatedBaryCenterCount != null && populatedBaryCenterCount.get() > 0) {
@@ -157,6 +154,6 @@ public class ProgressReporter {
   }
 
   public void setVertexCount(int vertexCount) {
-    this.cellCount = vertexCount;
+    this.vertexCount = vertexCount;
   }
 }
