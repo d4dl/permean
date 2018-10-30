@@ -10,15 +10,18 @@ import com.d4dl.permean.io.CellWriter;
 import com.d4dl.permean.io.KMLWriter;
 import com.d4dl.permean.io.LongFormatCellFileReader;
 import com.d4dl.permean.io.LongFormatCellFileWriter;
+import java.io.File;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Stack;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 
 import static java.lang.StrictMath.*;
 
@@ -216,6 +219,14 @@ public class Sphere {
         executor.shutdown();
     }
 
+
+
+    private void createOffHeapProxyMap(Object averageValue) throws IOException {
+        Map cellProxyMap = ChronicleMapBuilder.of(Integer.class, Object.class)
+            .entries(this.cellCount) //the maximum number of entries for the map
+            .averageValue(averageValue)
+            .createPersistedTo(new File("/tmp/cellsTmp.map"));
+    }
 
     public void buildCellStack(int cellCount) {
         System.out.println("Building cells.");
