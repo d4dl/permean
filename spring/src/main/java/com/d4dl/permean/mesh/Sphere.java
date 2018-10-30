@@ -221,13 +221,6 @@ public class Sphere {
 
 
 
-    private void createOffHeapProxyMap(Object averageValue) throws IOException {
-        Map cellProxyMap = ChronicleMapBuilder.of(Integer.class, Object.class)
-            .entries(this.cellCount) //the maximum number of entries for the map
-            .averageValue(averageValue)
-            .createPersistedTo(new File("/tmp/cellsTmp.map"));
-    }
-
     public void buildCellStack(int cellCount) {
         System.out.println("Building cells.");
         IntStream parallel = IntStream.range(0, cellCount).parallel();

@@ -5,10 +5,12 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
+import java.io.File;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import net.openhft.chronicle.map.ChronicleMapBuilder;
 import org.jetbrains.annotations.NotNull;
 
 public class LongFormatCellFileReader extends DataInputCellReader {
@@ -20,7 +22,12 @@ public class LongFormatCellFileReader extends DataInputCellReader {
 
   @Override
   protected void initializeVertices(int totalVertexCount) throws IOException {
-    vertexMap = new HashMap(totalVertexCount);// For the long format
+    vertexMap = ChronicleMapBuilder.of(UUID.class, Vertex.class)
+        .entries(totalVertexCount) //the maximum number of entries for the map
+        .averageValue(new Vertex(99, 99, 99f))
+        .averageKey(UUID.randomUUID())
+        .createPersistedTo(new File("/tmp/cellsTmp.map"));
+
     // Read all the vertexes
     for (int i = 0; i < totalVertexCount; i++) {
       UUID vertexId = null;
