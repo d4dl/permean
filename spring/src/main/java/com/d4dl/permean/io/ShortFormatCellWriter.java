@@ -10,10 +10,6 @@ public class ShortFormatCellWriter extends CellWriter {
     super(reporter, fileName);
   }
 
-  public ShortFormatCellWriter(String reporterName, String fileName) {
-    super(reporterName, fileName);
-  }
-
   @Override
   protected void writeVertex(ByteBuffer buffer, Vertex vertex) {
     float latitude = vertex.getLatitude();
@@ -33,11 +29,6 @@ public class ShortFormatCellWriter extends CellWriter {
     return buffer;
   }
 
-  protected long getVertexFileOffset(long vertexCount) {
-    long vertexFileOffset;
-    vertexFileOffset = vertexCount * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
-    return vertexFileOffset;
-  }
 
   @Override
   protected ByteBuffer getVertexBuffer(int vertexCount) {

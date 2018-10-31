@@ -84,7 +84,12 @@ public abstract class CellWriter extends DataIO {
     writeCounts(cellCount, vertexCount);
   }
 
-  protected abstract long getVertexFileOffset(long vertexCount);
+
+  protected long getVertexFileOffset(long vertexCount) {
+    long vertexFileOffset;
+    vertexFileOffset = vertexCount * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
+    return vertexFileOffset;
+  }
 
 
   private void writeCounts(int cellCount, int vertexCount) {

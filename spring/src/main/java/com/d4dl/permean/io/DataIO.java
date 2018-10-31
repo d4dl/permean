@@ -11,7 +11,6 @@ public class DataIO {
   private ProgressReporter reporter;
 
 
-  public static final int VERTEX_BYTE_SIZE_LONG = (Long.BYTES + Long.BYTES + (2 * Float.BYTES));
   public static final int VERTEX_BYTE_SIZE_SHORT = 2 * Float.BYTES;//Short format is just the vertices in order
   public static final int VERTEX_AND_CELL_COUNT_SIZE = 8;
 
@@ -22,20 +21,15 @@ public class DataIO {
     }
   }
 
-  public static ByteBuffer SIX_VERTEX_CELL_BUFFER_LONG = ByteBuffer.allocateDirect(
+  // 8 + 8 + 1 + 1 + (5 * 4) = 38
+  public static ByteBuffer FIVE_VERTEX_CELL_BUFFER_SHORT = ByteBuffer.allocateDirect(
       Long.BYTES + Long.BYTES +// The cell uuid
           Byte.BYTES +             // The initiator flag
           Byte.BYTES +             // The vertex count
-          6 * (Long.BYTES + Long.BYTES)
+          5 * (Integer.BYTES)
   );
 
-  public static ByteBuffer FIVE_VERTEX_CELL_BUFFER_LONG = ByteBuffer.allocateDirect(
-      Long.BYTES + Long.BYTES +// The cell uuid
-          Byte.BYTES +             // The initiator flag
-          Byte.BYTES +             // The vertex count
-          5 * (Long.BYTES + Long.BYTES)
-  );
-
+  // 8 + 8 + 1 + 1 + (6 * 4) = 42
   public static ByteBuffer SIX_VERTEX_CELL_BUFFER_SHORT = ByteBuffer.allocateDirect(
       Long.BYTES + Long.BYTES +// The cell uuid
           Byte.BYTES +             // The initiator flag
@@ -43,12 +37,6 @@ public class DataIO {
           6 * (Integer.BYTES)
   );
 
-  public static ByteBuffer FIVE_VERTEX_CELL_BUFFER_SHORT = ByteBuffer.allocateDirect(
-      Long.BYTES + Long.BYTES +// The cell uuid
-          Byte.BYTES +             // The initiator flag
-          Byte.BYTES +             // The vertex count
-          5 * (Integer.BYTES)
-  );
 
   public DataIO(ProgressReporter reporter) {
     this.reporter = reporter;
