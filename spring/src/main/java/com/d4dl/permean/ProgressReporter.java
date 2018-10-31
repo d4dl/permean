@@ -1,7 +1,9 @@
 package com.d4dl.permean;
 
+import com.d4dl.permean.data.Vertex;
 import java.text.NumberFormat;
 import java.util.Date;
+import java.util.Map;
 import java.util.Stack;
 import java.util.Timer;
 import java.util.TimerTask;
@@ -11,7 +13,6 @@ public class ProgressReporter {
 
 
   private final NumberFormat percentInstance;
-  private boolean iterating;
   private boolean reportingPaused = false;
   private TimerTask reportTask;
   private TimerTask writeRateTracker;
@@ -28,17 +29,21 @@ public class ProgressReporter {
   private final AtomicInteger builtCellCount = new AtomicInteger();
   private final AtomicInteger savedVertexCount = new AtomicInteger();
   private final AtomicInteger savedCellCount = new AtomicInteger();
-  private final Stack cellStack;
   private float vertexIORate;
   private float cellIORate;
+  private Map<String, Vertex> cachedVertices;
 
 
 
-  public ProgressReporter(String name, int cellCount, int vertexCount, Stack cellStack) {
+  public ProgressReporter(String name, int cellCount, int vertexCount, Map<String, Vertex> cachedVertices) {
+    this(name, cellCount, vertexCount);
+    this.cachedVertices = cachedVertices;
+  }
+
+  public ProgressReporter(String name, int cellCount, int vertexCount) {
     this.name = name;
     this.cellCount = cellCount;
     this.vertexCount = vertexCount;
-    this.cellStack = cellStack;
     percentInstance = NumberFormat.getPercentInstance();
   }
 
@@ -72,10 +77,13 @@ public class ProgressReporter {
         report("Built", cellCount, builtCellCount.get(), "Cells");
       }
       if (savedVertexCount != null && savedVertexCount.get() > 0) {
-        report("Got", vertexCount, savedVertexCount.get(), "Vertexes");
+        report("Saved", vertexCount, savedVertexCount.get(), "Vertexes");
       }
       if (savedCellCount != null && savedCellCount.get() > 0) {
-        report("Got", cellCount, savedCellCount.get(), "Cells");
+        report("Saved", cellCount, savedCellCount.get(), "Cells");
+      }
+      if (cachedVertices != null && cachedVertices.size() > 0) {
+        report("Caching", vertexCount, cachedVertices.size(), "vertices");
       }
       if (vertexIORate > 0) {
         System.out.print(" IO " + vertexIORate + " vertexes per ms.");
@@ -85,9 +93,6 @@ public class ProgressReporter {
       }
       //System.out.print(" " + cellStack.size() + " cells in the cell stack (" + percentInstance.format(((double)cellStack.size()) / ((double)cellCount) + ")."));
 
-      if (cellStack != null && cellStack.size() > 0) {
-        System.out.print(" " + cellStack.size() + " cells in the cell stack .");
-      }
       System.out.print("\n");
     }
   }
@@ -96,10 +101,14 @@ public class ProgressReporter {
 
   private void report(String verb, int total, int count, String type) {
     if (total > 0) {
-      System.out.print(" " + verb + " " + formatter.format(count) +
-          " of " + formatter.format(total) +
-          " " + type + " (" + percentInstance.format((double) count / (double) total) +
-          ")");
+      double completion = (double) count / (double) total;
+      if(completion < 1) {
+        System.out.print(" " + verb + " " + formatter.format(count) +
+            " of " + formatter.format(total) +
+            " " + type + " (" + percentInstance.format(completion) +
+            ")");
+
+      }
     }
   }
 

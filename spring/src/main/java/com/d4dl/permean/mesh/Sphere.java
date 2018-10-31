@@ -1,29 +1,27 @@
 package com.d4dl.permean.mesh;
 
+import static java.lang.StrictMath.PI;
+import static java.lang.StrictMath.max;
+import static java.lang.StrictMath.min;
+
 import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;
-
 import com.d4dl.permean.io.CellReader;
 import com.d4dl.permean.io.CellWriter;
 import com.d4dl.permean.io.KMLWriter;
-import com.d4dl.permean.io.LongFormatCellFileReader;
-import com.d4dl.permean.io.LongFormatCellFileWriter;
-import java.io.File;
+import com.d4dl.permean.io.ShortFormatCellReader;
+import com.d4dl.permean.io.ShortFormatCellWriter;
 import java.io.IOException;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Stack;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
-import net.openhft.chronicle.map.ChronicleMapBuilder;
-
-import static java.lang.StrictMath.*;
 
 /**
  * Represents a sphere of cells arranged in an interpolated icosahedral geodesic pattern.
@@ -48,7 +46,6 @@ public class Sphere {
 
     private NumberFormat formatter = NumberFormat.getInstance();
 
-    private Stack<Cell> cellStack = new Stack();
     private boolean stackIsDone = false;
 
     public final static String initiatorKey18Percent = "1F2F34D186D89AA0C8806F9EA9E51F8CB2274D5947118C67FBB0B0887EAF8734";
@@ -56,6 +53,11 @@ public class Sphere {
 
     private int cellCount = -1;
     private int vertexCount = -1;
+    // Track the vertices which have already been seen so the can be used again by
+    // cells that share them.  The cell generator will remove vertices from this map when they're no
+    // longer needed.
+    private Map<String, Vertex> seenVertexMap = new HashMap();
+    private AtomicInteger currentVertexIndex = new AtomicInteger(0);
 
     private NumberFormat percentInstance = NumberFormat.getPercentInstance();
 
@@ -95,7 +97,7 @@ public class Sphere {
         //You want 100,000,000 cells so they will be around 2 square miles each.
         cellCount = PEELS * 2 * this.divisions * this.divisions + 2;
         vertexCount = divisions * divisions * 20;
-        reporter = new ProgressReporter("CellGenerator", cellCount, vertexCount, cellStack);
+        reporter = new ProgressReporter("CellGenerator", cellCount, vertexCount, seenVertexMap);
         reporter.setCellCount(cellCount);
         reporter.setVertexCount(vertexCount);
         cellGenerator = new CellGenerator(cellCount, this.divisions, reporter);
@@ -143,10 +145,10 @@ public class Sphere {
                   double barycenterLng = barycenter.getLng();
                   if (lat1 < barycenterLat && barycenterLat < lat2 &&
                       lng1 < barycenterLng && barycenterLng < lng2) {
-                      cellList.add(cellGenerator.populateCell(i, "nobody"));
+                      cellList.add(cellGenerator.populateCell(i, "nobody", null, null));
                   }
                 }
-                CellReader reader = new LongFormatCellFileReader("KMLReader", fileOut);
+                CellReader reader = new ShortFormatCellReader("KMLReader", fileOut);
                 new KMLWriter(kmlOutFile).outputKML(cellList.toArray(new Cell[0]));
             } else if (outputKMLSampleSizeProperty != null) {
               if (kmlOutFile == null) {
@@ -157,12 +159,11 @@ public class Sphere {
               IntStream parallel = IntStream.range(0, outKMLSampleSize).parallel();
               parallel.forEach(f -> {
                   reporter.incrementBuiltCellCount();
-                  cells[f] = cellGenerator.populateCell(f, "nobody");
+                  cells[f] = cellGenerator.populateCell(f, "nobody", null, null);
               });
               new KMLWriter(kmlOutFile).outputKML(cells);
             } else {
-                createCellStackWriter(reporter, cellCount, vertexCount);
-                buildCellStack(cellCount);
+                writeCells(cellCount, reporter);
                 stackIsDone = true;
             }
         } finally {
@@ -170,59 +171,14 @@ public class Sphere {
                 databaseLoader.stop();
             }
         }
-        //System.out.println("Min was: " + minArea + " max was " + maxArea);
-        System.out.println("Created and saved " + cellCount + " cells.\nNow go run constraints.sql");
-        final String kmlOutFile = System.getProperty("kmlOutFile") == null ? null : System.getProperty("kmlOutFile");
-
-        if (kmlOutFile != null) {
-            CellReader reader = new LongFormatCellFileReader("KMLReader", fileOut);
-            try {
-                while (!stackIsDone || !cellStack.empty()) {
-                    try {
-                        Thread.sleep(1000);//Wait for the stack to finish processing before trying to read the file
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                new KMLWriter(kmlOutFile).outputKML(reader.readCells(null));
-            } finally {
-              reader.close();
-            }
-        }
         reporter.stop();
     }
 
 
-    private void createCellStackWriter(ProgressReporter progressReporter, final int cellCount, final int vertexCount) {
-        ExecutorService executor = Executors.newSingleThreadExecutor();
-        executor.submit(() -> {
-            System.out.println("Thread running " + Thread.currentThread().getName());
-            CellWriter writer = new LongFormatCellFileWriter(null, fileOut);
-            writer.setCountsAndStartWriting(cellCount, vertexCount);
-            try {
-                while (!stackIsDone || !cellStack.empty()) {
-                    if (!cellStack.empty()) {
-                        writer.writeCell(cellStack.pop(), true);
-                    } else {//If there's nothing in the queue don't keep looping more then once per second
-                        try {
-                            Thread.sleep(1000);
-                        } catch (InterruptedException e) {
-                            e.printStackTrace();
-                        }
-                    }
-                }
-                progressReporter.stop();
-            } finally {
-                writer.close();
-            }
-        });
-        executor.shutdown();
-    }
-
-
-
-    public void buildCellStack(int cellCount) {
+    public void writeCells(int cellCount, ProgressReporter progressReporter) {
         System.out.println("Building cells.");
+        CellWriter writer = new ShortFormatCellWriter(progressReporter, fileOut);
+        writer.setCountsAndStartWriting(cellCount, vertexCount);
         IntStream parallel = IntStream.range(0, cellCount).parallel();
         //parallel.forEach(f -> {
         for (int f=0; f < cellCount;) {
@@ -232,17 +188,12 @@ public class Sphere {
               } catch (InterruptedException e) {
                   e.printStackTrace();
               }
-              if (cellStack.size() < 1000) {
-                  stackProcessingPaused = false;
-              }
           } else {
               double random = Math.random() * 100;
               reporter.incrementBuiltCellCount();
               String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
-              cellStack.push(cellGenerator.populateCell(f++, initiator));
-              if (cellStack.size() > 1000000) {
-                  stackProcessingPaused = true;
-              }
+              Cell cell = cellGenerator.populateCell(f++, initiator, seenVertexMap, currentVertexIndex);
+              writer.writeCell(cell, true);
           }
         }
         //);

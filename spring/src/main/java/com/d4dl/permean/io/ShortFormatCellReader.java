@@ -5,14 +5,8 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.util.UUID;
-import java.util.zip.GZIPInputStream;
-import org.jetbrains.annotations.NotNull;
 
 public class ShortFormatCellReader extends DataInputCellReader {
   Vertex[] orderedVertices;
@@ -36,7 +30,7 @@ public class ShortFormatCellReader extends DataInputCellReader {
     for (int i = 0; i < vertexCount; i++) {
       float latitude = readFloat();
       float longitude = readFloat();
-      orderedVertices[i] = new Vertex(i, latitude, longitude);
+      orderedVertices[i] = new Vertex(null, i, latitude, longitude);
       //System.out.println(i + " Getting vertex " + orderedVertices[i]);
       incrementVerticesWritten();
     }

@@ -146,7 +146,7 @@ public class KMLWriter {
     CellReader cellReader = new ShortFormatMappedCellReader("KMLReader", args[0]);
     try {
       final boolean initiator18Only = Boolean.parseBoolean(System.getProperty("initiator18Only"));
-      readReporter = new ProgressReporter("Read For KML " + 0, 0, 0, null);
+      readReporter = new ProgressReporter("Read For KML " + 0, 0, 0);
       readReporter.start();
       //Read from short file and create KML
       readReporter.reset();

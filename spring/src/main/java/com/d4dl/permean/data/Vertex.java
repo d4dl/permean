@@ -26,10 +26,6 @@ public class Vertex extends BasicEntity {
 
     @Transient
     @JsonIgnore
-    private boolean shouldPersist;
-
-    @Transient
-    @JsonIgnore
     private short accessCount;
 
     float latitude;
@@ -44,8 +40,8 @@ public class Vertex extends BasicEntity {
 
     }
 
-    public Vertex(int index, float latitude, float longitude) {
-        this(null, latitude, longitude);
+    public Vertex(UUID stableUUID, int index, float latitude, float longitude) {
+        this(stableUUID, latitude, longitude);
         this.index = index;
     }
 
@@ -60,16 +56,8 @@ public class Vertex extends BasicEntity {
         //return "φ: " + φ + ", λ: " + λ;
     }
 
-    /**
-     * To avoid persisting vertices more than once some cells "own" a vertex so it can be
-     * determined when the vertex, which is shared with other cells, should be persisted.
-     */
-    public void setShouldPersist() {
-        this.shouldPersist = true;
-    }
-
     public boolean getShouldPersist() {
-      return shouldPersist;
+      return accessCount == 0;
     }
 
     public String toString() {

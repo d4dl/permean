@@ -17,7 +17,7 @@ public class DataIO {
 
   public DataIO(String reporterName) {
     if (reporterName != null) {
-      reporter = new ProgressReporter(reporterName, 0, 0, null);
+      reporter = new ProgressReporter(reporterName, 0, 0);
       reporter.start();
     }
   }
@@ -50,6 +50,9 @@ public class DataIO {
           5 * (Integer.BYTES)
   );
 
+  public DataIO(ProgressReporter reporter) {
+    this.reporter = reporter;
+  }
 
 
   protected void incrementVerticesWritten() {

@@ -3,11 +3,13 @@ package com.d4dl.permean.mesh;
 import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
+import com.sun.jna.platform.unix.X11.Atom;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -46,12 +48,12 @@ public class CellGenerator {
    * is returned, all vertices will be guaranteed to be returned only once.
    * adding a vertex more than once (when another neighboring cell is processed) can be avoided.
    */
-  public Cell populateCell(int cellIndex, String initiator) {
+  public Cell populateCell(int cellIndex, String initiator, Map<String, Vertex> seenVertexMap, AtomicInteger currentVertexIndex) {
     UUID id = UUID.randomUUID();
-    return new Cell(initiator, id, populateVertices(id, cellIndex), 0, (float)barycenters[cellIndex].getLat(), (float)barycenters[cellIndex].getLng());
+    return new Cell(initiator, id, populateVertices(cellIndex, seenVertexMap, currentVertexIndex), 0, (float)barycenters[cellIndex].getLat(), (float)barycenters[cellIndex].getLng());
   }
 
-  public Vertex[] populateVertices(UUID owningCellId, int cellIndex) {
+  public Vertex[] populateVertices(int cellIndex, Map<String, Vertex> seenVertexMap, AtomicInteger currentVertexIndex) {
 
     boolean isPentagon = isPentagon(cellIndex);
     Vertex[] vertices = new Vertex[isPentagon ? 5 : 6];
@@ -67,18 +69,30 @@ public class CellGenerator {
       int[] sharedVertexKey = new int[]{cellIndex, firstAdjacentIndex, secondAdjacentIndex};
       Arrays.sort(sharedVertexKey);
       UUID stableUUID = createStableUUID(sharedVertexKey);
-      //These three positions represent the triangle whose vertices are the three barycenters
-      //that can be used to calculate the centroid of said triangle which is the vertex that
-      //the three cells share.
-      Position firstPos = barycenters[cellIndex];
-      Position secondPos = barycenters[firstAdjacentIndex];
-      Position thirdPos = barycenters[secondAdjacentIndex];
-      Position centroid = firstPos.centroid(cellIndex, secondPos, thirdPos);
-      // A vertex with the same id may be created more than once.  But it shouldn't be persisted more than once.
-      Vertex sharedVertex = new Vertex(stableUUID, (float)centroid.getLat(), (float)centroid.getLng());
-      boolean isPersistenceOwner = cellIndex < firstAdjacentIndex && cellIndex < secondAdjacentIndex;
-      if (isPersistenceOwner) {
-        sharedVertex.setShouldPersist();
+      Vertex sharedVertex = seenVertexMap != null ? seenVertexMap.get(stableUUID.toString()) : null;
+      if (sharedVertex == null) {
+        //These three positions represent the triangle whose vertices are the three barycenters
+        //that can be used to calculate the centroid of said triangle which is the vertex that
+        //the three cells share.
+        Position firstPos = barycenters[cellIndex];
+        Position secondPos = barycenters[firstAdjacentIndex];
+        Position thirdPos = barycenters[secondAdjacentIndex];
+        Position centroid = firstPos.centroid(cellIndex, secondPos, thirdPos);
+        if (currentVertexIndex != null) {
+          int vertexIndex = currentVertexIndex.getAndIncrement();
+          // A vertex with the same id may be created more than once.  But it shouldn't be persisted more than once.
+          sharedVertex = new Vertex(stableUUID, vertexIndex, (float) centroid.getLat(), (float) centroid.getLng());
+        } else {
+          sharedVertex = new Vertex(stableUUID, (float) centroid.getLat(), (float) centroid.getLng());
+        }
+        if(seenVertexMap != null) {
+          seenVertexMap.put(stableUUID.toString(), sharedVertex);
+        }
+      } else if (seenVertexMap != null) {
+        sharedVertex.access();
+        if (sharedVertex.getAccessCount() == 2) {
+          seenVertexMap.remove(sharedVertex.getId().toString());
+        }
       }
       vertices[i] = sharedVertex;
     }

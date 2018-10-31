@@ -68,4 +68,10 @@ public abstract class DataInputCellReader extends CellReader {
     //System.out.println("IN 32F " + value);
     return value;
   }
+
+  protected float skipFloat() throws IOException {
+    float value = in.skipBytes(8);
+    //System.out.println("IN 32F " + value);
+    return value;
+  }
 }

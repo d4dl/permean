@@ -1,9 +1,14 @@
 package com.d4dl.permean.io;
 
+import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Vertex;
 import java.nio.ByteBuffer;
 
 public class ShortFormatCellWriter extends CellWriter {
+
+  public ShortFormatCellWriter(ProgressReporter reporter, String fileName) {
+    super(reporter, fileName);
+  }
 
   public ShortFormatCellWriter(String reporterName, String fileName) {
     super(reporterName, fileName);

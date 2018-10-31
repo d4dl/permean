@@ -2,6 +2,7 @@ package com.d4dl.permean.io;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
+import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import java.io.File;
@@ -21,6 +22,11 @@ public abstract class CellWriter extends DataIO {
   protected CellWriter(String reporterName, String fileOut) {
     super(reporterName);
     this.fileOut = fileOut;
+  }
+
+  public CellWriter(ProgressReporter reporter, String fileName) {
+    super(reporter);
+    this.fileOut = fileName;
   }
 
   public void writeCell(Cell cell, boolean writeVertices) {

@@ -96,7 +96,7 @@ public class ShortFormatMappedCellReader extends CellReader {
     vertexFileChannel.read(latLngBuffer);
     float latitude = latLngBuffer.getFloat(0);
     float longitude = latLngBuffer.getFloat(4);
-    Vertex vertex = new Vertex(vertexIndex, latitude, longitude);
+    Vertex vertex = new Vertex(null, vertexIndex, latitude, longitude);
     latLngBuffer.flip();
     return vertex;
   }
