@@ -1,11 +1,11 @@
 package com.d4dl.permean.data;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.util.UUID;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
 import java.math.MathContext;
 import java.math.RoundingMode;
 import java.util.Set;
@@ -22,9 +22,15 @@ import java.util.Set;
 public class Vertex extends BasicEntity {
 
     public static final MathContext CONTEXT = new MathContext(10, RoundingMode.HALF_EVEN);
-    public static BigDecimal tiny = new BigDecimal(0.00000000000001, CONTEXT);
-    BigDecimal latitude;
-    BigDecimal longitude;
+    public static float tiny = 0.0000001f;
+
+    @Transient
+    @JsonIgnore
+    private short accessCount;
+
+    float latitude;
+    float longitude;
+    int index;
 
     @ManyToMany(mappedBy = "vertices", fetch = FetchType.LAZY)
     @JsonIgnore
@@ -34,12 +40,15 @@ public class Vertex extends BasicEntity {
 
     }
 
-    public Vertex(String uuid, BigDecimal latitude, BigDecimal longitude) {
+    public Vertex(UUID stableUUID, int index, float latitude, float longitude) {
+        this(stableUUID, latitude, longitude);
+        this.index = index;
+    }
+
+    public Vertex(UUID uuid, float latitude, float longitude) {
         this.setId(uuid);
-        this.latitude = latitude.abs().compareTo(tiny) <= 0 ? new BigDecimal(0, CONTEXT) : latitude;
-        this.longitude = longitude.abs().compareTo(tiny) <= 0 ? new BigDecimal(0, CONTEXT) : longitude;
-        //this.latitude = latitude;
-        //this.longitude = longitude;
+        this.latitude = Math.abs(latitude) < tiny ? 0 : latitude;
+        this.longitude = Math.abs(longitude) < tiny ? 0 : longitude;
     }
 
     public String kmlString(int height) {
@@ -47,7 +56,18 @@ public class Vertex extends BasicEntity {
         //return "φ: " + φ + ", λ: " + λ;
     }
 
+    public boolean getShouldPersist() {
+      return accessCount == 0;
+    }
+
     public String toString() {
-        return id;
+      StringBuffer buffer = new StringBuffer();
+      buffer.append("[").append(this.latitude).append(",").append(this.longitude).append("]");
+      return buffer.toString();
+    }
+
+    public short access() {
+        accessCount++;
+        return accessCount;
     }
 }

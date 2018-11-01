@@ -4,7 +4,6 @@ import com.d4dl.permean.data.Vertex;
 import com.d4dl.permean.mesh.positiontree.LatComparable;
 
 import java.io.Serializable;
-import java.math.BigDecimal;
 
 import static java.lang.StrictMath.*;
 
@@ -15,8 +14,6 @@ public class Position implements Serializable, LatComparable {
     public static final double π = PI;
     public static final double LAT_CONVERT = 90 * 2/π;
     public static final double LNG_CONVERT = 180/PI;
-    private Vertex vertex;
-    private int vertexIndex;
 
     //Latitude (elevation angle) the angle in radians between the equatorial plane and the straight line that passes
     //through that point and through (or close to) the center of the Earth
@@ -147,26 +144,16 @@ public class Position implements Serializable, LatComparable {
         return φ;
     }
 
-    public BigDecimal getLat() {
+    public double getLat() {
         //return 90 * (cos(φ) / π) * (φ < 0 ? -1 : 1);
         //return φ * UNIT;
         //return sin(φ) * 90;
-        return new BigDecimal(90 - (90 - (φ * LAT_CONVERT)), Vertex.CONTEXT);
+        return 90 - (90 - (φ * LAT_CONVERT));
     }
 
-    public BigDecimal getLng() {
-        return new BigDecimal(180 * (λ / PI), Vertex.CONTEXT);
+    public double getLng() {
+        return 180 * (λ / PI);
     }
-
-
-    public Vertex getVertex() {
-        return vertex;
-    }
-
-    public void setVertex(Vertex vertex) {
-        this.vertex = vertex;
-    }
-
     /**
      * Either compareTo using lat or lng if alt is true.
      * @param o

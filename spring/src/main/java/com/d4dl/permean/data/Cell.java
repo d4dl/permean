@@ -1,11 +1,11 @@
 package com.d4dl.permean.data;
 
+import java.util.UUID;
 import lombok.Data;
 import org.hibernate.annotations.Fetch;
 import org.hibernate.annotations.FetchMode;
 
 import javax.persistence.*;
-import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -17,10 +17,10 @@ import java.util.List;
         attributeNodes = @NamedAttributeNode("vertices"))
 public class Cell extends BasicEntity {
 
-    private int parentSize;
-    private double area;
-    BigDecimal centerLatitude;
-    BigDecimal centerLongitude;
+  private String initiator;
+  private double area;
+    float centerLatitude;
+    float centerLongitude;
 
     @ManyToMany(fetch = FetchType.EAGER,
                 cascade = {CascadeType.PERSIST, CascadeType.MERGE})
@@ -32,20 +32,34 @@ public class Cell extends BasicEntity {
             @JoinColumn(name="vertices_id", referencedColumnName="id")
     )
     @OrderColumn(name="sequence")
-    private List<Vertex> vertices;
+    private Vertex[] vertices;
 
 
     public Cell() {
 
     }
 
-    public Cell(String id, List<Vertex> vertices, int parentSize, double area, BigDecimal centerLatitude, BigDecimal centerLongitude) {
+    public Cell(Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
+        this(null, UUID.randomUUID(), vertices, area, centerLatitude, centerLongitude);
+    }
+
+    public Cell(String initiator, UUID id, Vertex[] vertices, double area, float centerLatitude, float centerLongitude) {
         setId(id);
+        this.initiator = initiator;
         this.centerLatitude = centerLatitude;
         this.centerLongitude = centerLongitude;
         this.vertices = vertices;
         this.area = area;
-        this.parentSize = parentSize;
     }
 
+    public String toString() {
+        StringBuffer buffer = new StringBuffer();
+
+      buffer.append(getId()).append(" = {");
+      for(Vertex vertex : vertices) {
+          buffer.append(vertex.toString()).append(",");
+      }
+      buffer.append("}");
+      return buffer.toString();
+    }
 }

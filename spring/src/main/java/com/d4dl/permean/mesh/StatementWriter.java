@@ -1,4 +1,4 @@
-package com.d4dl.permean;
+package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
@@ -17,8 +17,8 @@ import java.util.List;
 public class StatementWriter {
     private final int parentSize;
     private final Writer joinWriter;
-    private final Writer cellWriter;
-    private final Writer vertexWriter;
+    private final Writer cellFileChannel;
+    private final Writer vertexFileChannel;
     private final boolean writeFiles;
     List<Cell> cells = new ArrayList();
     List<Vertex> vertices = new ArrayList();
@@ -45,8 +45,8 @@ public class StatementWriter {
         this.writeFiles = writeFiles;
         String threadName = Thread.currentThread().getName();
         joinWriter = getFileWriter(threadName, "cell_vertices");
-        cellWriter = getFileWriter(threadName, "cells");
-        vertexWriter = getFileWriter(threadName, "vertices");
+        cellFileChannel = getFileWriter(threadName, "cells");
+        vertexFileChannel = getFileWriter(threadName, "vertices");
         //joinConnection = getConnection(threadName, "cell_vertices");
         cellConnection = getConnection();
         //vertexConnection = getConnection(threadName, "vertices");
@@ -56,8 +56,8 @@ public class StatementWriter {
         try {
             if(joinWriter != null) {
                 joinWriter.close();
-                cellWriter.close();
-                vertexWriter.close();
+                cellFileChannel.close();
+                vertexFileChannel.close();
             }
         } catch (IOException e) {
             System.out.println("Closing a writer that's already closed.");
@@ -105,11 +105,11 @@ public class StatementWriter {
             try (PreparedStatement cellStmt = cellConnection.prepareStatement(CELL_INSERT); PreparedStatement joinStmt = cellConnection.prepareStatement(JOIN_INSERT)) {
                 for (Cell cell : cells) {
                     addVertexValues(joinStmt, cell);
-                    cellStmt.setString(1, cell.getId());
+                    cellStmt.setString(1, cell.getId().toString());
                     cellStmt.setDouble(2, cell.getArea());
                     cellStmt.setInt(3, parentSize);
-                    cellStmt.setBigDecimal(4, cell.getCenterLatitude());
-                    cellStmt.setBigDecimal(5, cell.getCenterLongitude());
+                    cellStmt.setFloat(4, cell.getCenterLatitude());
+                    cellStmt.setFloat(5, cell.getCenterLongitude());
                     cellStmt.addBatch();
                 }
                 cellStmt.executeLargeBatch();
@@ -128,9 +128,9 @@ public class StatementWriter {
             if (!offlineMode && ((force && vertices.size() > 0) || vertices.size() > BATCH_SIZE)) {
                 try (PreparedStatement stmt = cellConnection.prepareStatement(VERTEX_INSERT)) {
                     for (Vertex vertex : vertices) {
-                        stmt.setString(1, vertex.getId());
-                        stmt.setBigDecimal(2, vertex.getLatitude());
-                        stmt.setBigDecimal(3, vertex.getLongitude());
+                        stmt.setString(1, vertex.getId().toString());
+                        stmt.setFloat(2, vertex.getLatitude());
+                        stmt.setFloat(3, vertex.getLongitude());
                         stmt.addBatch();
                     }
                     stmt.executeLargeBatch();
@@ -148,10 +148,10 @@ public class StatementWriter {
 
     private void addVertexValues(PreparedStatement joinStmt, Cell cell) {
         try {
-            for (int i = 0; i < cell.getVertices().size(); i++) {
-                Vertex vertex = cell.getVertices().get(i);
-                joinStmt.setString(1, cell.getId());
-                joinStmt.setString(2, vertex.getId());
+            for (int i = 0; i < cell.getVertices().length; i++) {
+                Vertex vertex = cell.getVertices()[i];
+                joinStmt.setString(1, cell.getId().toString());
+                joinStmt.setString(2, vertex.getId().toString());
                 joinStmt.setInt(3, i);
                 joinStmt.addBatch();
             }

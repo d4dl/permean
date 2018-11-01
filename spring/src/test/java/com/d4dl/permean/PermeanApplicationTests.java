@@ -30,15 +30,15 @@ public class PermeanApplicationTests {
 	public void contextLoads() {
 		//List<Cell> cells = cellRepository.findInLatLngRange(27.125300143532133, 27.16669602267853, -32.07185468292238, -31.97014531707765);
 		List<Cell> cells1 = cellRepository.findByCenterLatitudeBetweenAndCenterLongitudeBetween(
-				new BigDecimal("27.125300143532133"),
-				new BigDecimal("27.16669602267853"),
-				new BigDecimal("-32.07185468292238"),
-				new BigDecimal("-31.97014531707765"));
+				(float)27.125300143532133,
+				(float)27.16669602267853,
+				(float)-32.07185468292238,
+				(float)-31.97014531707765);
 		List<Cell> cells2 = cellRepository.findByCenterLatitudeBetweenAndCenterLongitudeBetween(
-				new BigDecimal("0"),
-				new BigDecimal("180"),
-				new BigDecimal("0"),
-				new BigDecimal("90"));
+				0,
+				180,
+				0,
+				90);
 		System.out.println("Done");
 	}
 

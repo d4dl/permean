@@ -1,7 +1,8 @@
 package com.d4dl.permean.data;
 
-import com.d4dl.permean.StatementWriter;
+import com.d4dl.permean.mesh.StatementWriter;
 import com.d4dl.permean.mesh.Sphere;
+import java.io.IOException;
 import org.jetbrains.annotations.NotNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
@@ -41,7 +42,7 @@ public class DatabaseLoader implements CommandLineRunner {
         segmentTheEarth();
     }
 
-    private void segmentTheEarth() {
+    private void segmentTheEarth() throws IOException {
         String parentSize = System.getProperty("sphere.divisions");
         if(parentSize == null) {
             System.out.println("Integer property sphere.divisions is required");
@@ -52,8 +53,8 @@ public class DatabaseLoader implements CommandLineRunner {
         if (System.getProperty("writeFiles") == null) {
             System.out.println("Property writeFiles is required. If true sql update files will be produced.");
         }
-        if (System.getProperty("outputKML") == null) {
-            System.out.println("Property outputKML is required.  If true a kml file will be created.");
+        if (System.getProperty("kmlOutFile") == null) {
+            System.out.println("Property kmlOutFile is required.  If true a kml file will be created.");
         }
 
         if(parentSize != null) {
@@ -61,7 +62,7 @@ public class DatabaseLoader implements CommandLineRunner {
         }
 
         System.out.println("Creating a sphere with " + this.parentSize + " divisions");
-        Sphere sphere = new Sphere(this.parentSize, this);
+        Sphere sphere = new Sphere("/tmp/cellsLong.json", this.parentSize, this);
         sphere.buildCells();
     }
 
