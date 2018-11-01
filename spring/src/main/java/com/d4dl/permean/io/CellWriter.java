@@ -2,7 +2,7 @@ package com.d4dl.permean.io;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
-import com.d4dl.permean.ProgressReporter;
+import com.d4dl.permean.mesh.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
 import java.io.File;

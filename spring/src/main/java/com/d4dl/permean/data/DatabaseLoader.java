@@ -1,6 +1,6 @@
 package com.d4dl.permean.data;
 
-import com.d4dl.permean.StatementWriter;
+import com.d4dl.permean.mesh.StatementWriter;
 import com.d4dl.permean.mesh.Sphere;
 import java.io.IOException;
 import org.jetbrains.annotations.NotNull;

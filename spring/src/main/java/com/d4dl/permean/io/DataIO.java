@@ -1,10 +1,7 @@
 package com.d4dl.permean.io;
 
-import com.d4dl.permean.ProgressReporter;
-import java.io.DataInputStream;
-import java.io.IOException;
+import com.d4dl.permean.mesh.ProgressReporter;
 import java.nio.ByteBuffer;
-import java.nio.channels.FileChannel;
 
 public class DataIO {
 

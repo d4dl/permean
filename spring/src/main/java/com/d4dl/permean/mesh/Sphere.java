@@ -4,7 +4,6 @@ import static java.lang.StrictMath.PI;
 import static java.lang.StrictMath.max;
 import static java.lang.StrictMath.min;
 
-import com.d4dl.permean.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.DatabaseLoader;
 import com.d4dl.permean.data.Vertex;

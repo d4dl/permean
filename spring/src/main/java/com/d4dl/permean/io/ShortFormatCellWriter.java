@@ -1,6 +1,6 @@
 package com.d4dl.permean.io;
 
-import com.d4dl.permean.ProgressReporter;
+import com.d4dl.permean.mesh.ProgressReporter;
 import com.d4dl.permean.data.Vertex;
 import java.nio.ByteBuffer;
 
