@@ -5,6 +5,7 @@ import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
+import com.d4dl.permean.mesh.MeshCell;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -15,7 +16,7 @@ public class ShortFormatCellReader extends DataInputCellReader {
     super(reporterName, fileName);
   }
 
-  @Override
+  //@Override
   protected Vertex nextVertex() throws IOException {
     int vertexIndex = readInt();
     //System.out.println("Reading int " + vertexIndex);
@@ -23,7 +24,7 @@ public class ShortFormatCellReader extends DataInputCellReader {
   }
 
   @Override
-  protected void initializeVertices(int vertexCount) throws IOException {
+  protected void initializeVertices(int cellCount, int vertexCount) throws IOException {
     orderedVertices = new Vertex[vertexCount];//For the short format
 
     // Read all the vertexes
@@ -38,7 +39,7 @@ public class ShortFormatCellReader extends DataInputCellReader {
 
 
   @Override
-  protected Cell nextCell() throws IOException {
+  protected MeshCell nextCell(int cellIndex) throws IOException {
     long uuidMSB = readLong();
     long uuidLSB = readLong();
     UUID cellId = new UUID(uuidMSB, uuidLSB);

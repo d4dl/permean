@@ -2,6 +2,7 @@ package com.d4dl.permean.io;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
+import com.d4dl.permean.mesh.MeshCell;
 import com.d4dl.permean.mesh.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 
@@ -23,11 +24,11 @@ public class KMLWriter {
     this.fileName = kmlOutFile;
   }
 
-  public void outputKML(Cell[] cells) throws IOException {
+  public void outputKML(MeshCell[] cells) throws IOException {
    outputKML(cells, false, -1);
   }
 
- public void outputKML(Cell[] cells, boolean initiator18Only, int limit) throws IOException {
+ public void outputKML(MeshCell[] cells, boolean initiator18Only, int limit) throws IOException {
     File file = new File(fileName);
     System.out.println("Writing to file: " + file.getAbsolutePath());
     BufferedWriter writer = null;
@@ -92,7 +93,7 @@ public class KMLWriter {
     }
   }
 
-  private String getLineString(Cell cell) {
+  private String getLineString(MeshCell cell) {
     return
         "      <LineString>\n" +
             "        <tesselate>1</tesselate>\n" +
@@ -121,7 +122,7 @@ public class KMLWriter {
 
 
 
-  public String kmlString(int height, Cell cell) {
+  public String kmlString(int height, MeshCell cell) {
     Vertex[] vertices = cell.getVertices();
     StringBuffer buff = new StringBuffer();
     for (int i = 0; i < vertices.length; i++) {

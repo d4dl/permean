@@ -1,18 +1,7 @@
 package com.d4dl.permean.io;
 
-import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
-import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
-
-import com.d4dl.permean.data.Cell;
-import com.d4dl.permean.data.Vertex;
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.File;
-import java.io.FileInputStream;
+import com.d4dl.permean.mesh.MeshCell;
 import java.io.IOException;
-import java.util.UUID;
-import java.util.zip.GZIPInputStream;
-import org.jetbrains.annotations.NotNull;
 
 public abstract class CellReader extends DataIO {
 
@@ -23,6 +12,9 @@ public abstract class CellReader extends DataIO {
     super(reporterName);
   }
 
+  public MeshCell[] readCells() {
+    return readCells(null, false);
+  }
 
   /**
    *
@@ -30,20 +22,20 @@ public abstract class CellReader extends DataIO {
    * @param validateOnly if true returns and empty cell array just to make sure the file can be read
    * @return
    */
-  public Cell[] readCells(CellWriter writer, boolean validateOnly) {
+  public MeshCell[] readCells(CellWriter writer, boolean validateOnly) {
     int currentPersistentVertexIndex = 0;
-    Cell[] cells = null;
+    MeshCell[] cells = null;
     // Preserve the order the vertices are read in so the indexes are correct
     try {
       int cellCount = readCellCount();
       int totalVertexCount = readVertexCount();
       setVertexCount(totalVertexCount);
       setCellCount(cellCount);
-      cells = new Cell[cellCount];
+      cells = new MeshCell[cellCount];
       if (writer != null) {
         writer.setCountsAndStartWriting(cellCount, totalVertexCount);
       }
-      initializeVertices(totalVertexCount);
+      initializeVertices(cellCount, totalVertexCount);
 
       System.out.println("Finished reading in vertices.  Now reading and populating cells.");
       if(writer != null) {
@@ -51,7 +43,7 @@ public abstract class CellReader extends DataIO {
       }
 
       for (int c=0; c < cellCount; c++) {
-        Cell cell = nextCell();
+        MeshCell cell = nextCell(c);
         if (writer != null) {
           currentPersistentVertexIndex = writer.writeCell(currentPersistentVertexIndex, cell);
         } else if (!validateOnly) {
@@ -70,21 +62,18 @@ public abstract class CellReader extends DataIO {
   }
 
 
-  protected abstract Cell nextCell() throws IOException;
+  protected abstract MeshCell nextCell(int cellIndex) throws IOException;
 
   protected abstract int readCellCount() throws IOException;
   protected abstract int readVertexCount() throws IOException;
 
-  protected abstract Vertex nextVertex() throws IOException;
-
-
-  protected abstract void initializeVertices(int vertexCount) throws IOException;
+  protected abstract void initializeVertices(int cellCount, int vertexCount) throws IOException;
 
   public void close() {
     super.close();
   }
 
-  public Cell[] readCells(CellWriter writer) {
+  public MeshCell[] readCells(CellWriter writer) {
     return readCells(writer, false);
   }
 }

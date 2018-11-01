@@ -2,6 +2,7 @@ package com.d4dl.permean.io;
 
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 
+import com.d4dl.permean.mesh.MeshCell;
 import com.d4dl.permean.mesh.ProgressReporter;
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
@@ -29,7 +30,7 @@ public abstract class CellWriter extends DataIO {
     this.fileOut = fileName;
   }
 
-  public void writeCell(Cell cell, boolean writeVertices) {
+  public void writeCell(MeshCell cell, boolean writeVertices) {
     try {
       if (writeVertices) {
         writeVertices(cell);
@@ -46,7 +47,7 @@ public abstract class CellWriter extends DataIO {
    * @param cell
    * @throws IOException
    */
-  public void writeCell(String initiator, Cell cell) throws IOException {
+  public void writeCell(String initiator, MeshCell cell) throws IOException {
     long uuidMSB = cell.getId().getMostSignificantBits();
     long uuidLSB = cell.getId().getLeastSignificantBits();
     int vertexCount = cell.getVertices().length;
@@ -109,7 +110,7 @@ public abstract class CellWriter extends DataIO {
     }
   }
 
-  private void writeVertices(Cell cell) throws IOException {
+  private void writeVertices(MeshCell cell) throws IOException {
     Vertex[] vertices = cell.getVertices();
     List<Vertex> verticesToPersist = new ArrayList(vertices.length);
     for (Vertex vertex : vertices) {
@@ -158,7 +159,7 @@ public abstract class CellWriter extends DataIO {
   }
 
 
-  public int writeCell(int currentPersistentVertexIndex, Cell cell) throws IOException {
+  public int writeCell(int currentPersistentVertexIndex, MeshCell cell) throws IOException {
     writeCell(cell, false);
     //The consecutive vertices should be persisted.  The non-consecutive ones were either already
     //persisted or will be later
