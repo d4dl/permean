@@ -49,6 +49,11 @@ public abstract class CellReader extends DataIO {
         } else if (!validateOnly) {
           cells[c] = cell;
         }
+
+        if (validateOnly) {
+          // Validate that getting vertices doesn't tank everything.
+          cell.getVertices();
+        }
         incrementCellsWritten();
 
         //System.out.println("R: " + cells[c]);
