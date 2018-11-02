@@ -19,7 +19,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 /**
@@ -69,10 +68,7 @@ public class Sphere {
     private static double AVG_EARTH_RADIUS_MI = 3959;
     int goodDivisionsValue = 6833;
     // division=2555 results in: 65,280,252 cells.  Each one will average 3.017164889884918 square miles.  130,560,500  Vertices
-    AtomicReference<Float> vertexWriteRate = new AtomicReference();
-    AtomicReference<Float> cellWriteRate = new AtomicReference();
     private String fileOut;
-    boolean stackProcessingPaused = false;
 
 
     //The laptop can do this easily.  It produces 25 million regions of 7.7 square miles each
@@ -178,25 +174,28 @@ public class Sphere {
         System.out.println("Building cells.");
         CellWriter writer = new ShortFormatCellWriter(progressReporter, fileOut);
         writer.setCountsAndStartWriting(cellCount, vertexCount);
+
+        writeCells(cellCount, writer, true);
+        System.out.println("\n\nWrote the pentagons");
+        writeCells(cellCount, writer, false);
+        System.out.println("Finished building cells.");
+    }
+
+    private void writeCells(int cellCount, CellWriter writer, boolean pentagons) {
         IntStream parallel = IntStream.range(0, cellCount).parallel();
         //parallel.forEach(f -> {
         for (int f=0; f < cellCount;) {
-          if (stackProcessingPaused) {
-              try {
-                  Thread.sleep(1000);
-              } catch (InterruptedException e) {
-                  e.printStackTrace();
-              }
-          } else {
-              double random = Math.random() * 100;
-              reporter.incrementBuiltCellCount();
-              String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
-              Cell cell = cellGenerator.populateCell(f++, initiator, seenVertexMap, currentVertexIndex);
-              writer.writeCell(cell, true);
-          }
+            if(pentagons && cellGenerator.isPentagon(f) || !pentagons && !cellGenerator.isPentagon(f)) {
+                double random = Math.random() * 100;
+                reporter.incrementBuiltCellCount();
+                String initiator = random > 82 ? initiatorKey18Percent : Sphere.initiatorKey82Percent;
+                Cell cell = cellGenerator.populateCell(f, initiator, seenVertexMap, currentVertexIndex);
+                //System.out.println("Writing a cell with " + cell.getVertices().length + " vertices.");
+                writer.writeCell(cell, true);
+            }
+            f++;
         }
         //);
-        System.out.println("Finished building cells.");
     }
 
     public void saveCells(Cell[] cells, double eightyTwoPercent) {

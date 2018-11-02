@@ -2,14 +2,18 @@ package com.d4dl.permean.mesh;
 
 import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.data.Vertex;
+import com.d4dl.permean.io.SizeManager;
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.IntStream;
 
 public class CellGenerator {
+
+  public static final int EUCLID_DETERMINED_PENTAGONS_IN_A_TRUNCATED_ICOSOHEDRON = 12;
   private final Position[] barycenters;
   private final ProgressReporter reporter;
   private final int sphereDivisions;
@@ -228,7 +232,43 @@ public class CellGenerator {
     return adjacentCellIndices;
   }
 
-  private boolean isPentagon(int cellIndex) {
+  public static void main(String args[]) {
+    int divisions = 3333;
+    SizeManager sizeManager = new SizeManager();
+    int cellCount = sizeManager.calculateCellCount(divisions);
+    int vertexCount = sizeManager.calculateVertexCount(divisions);
+    AtomicInteger cellCounter = new AtomicInteger();
+
+    CellGenerator cg = new CellGenerator(cellCount, divisions, null);
+    System.out.println("Beginning the pentagon hunt");
+    IntStream parallel = IntStream.range(0, cellCount).parallel();
+    parallel.forEach(f -> {
+      if(cg.isPentagon(f)) {
+        System.out.println(cellCounter.incrementAndGet() + ") Found a pentagon at " + f);
+      }
+    });
+    System.out.println("Finished hunting for pentagons");
+  }
+
+  /**
+   * Allows for the retreival of pentagons first so they can be persisted first
+   * @return
+   */
+  public Cell[] getPentagons(int cellCount, Map<String, Vertex> vertexMap, AtomicInteger currentVertexIndex) {
+    Cell[] pentagons = new Cell[EUCLID_DETERMINED_PENTAGONS_IN_A_TRUNCATED_ICOSOHEDRON];
+    AtomicInteger cellCounter = new AtomicInteger();
+    IntStream parallel = IntStream.range(0, cellCount).parallel();
+    parallel.forEach(f -> {
+      if(isPentagon(f)) {
+        System.out.println("Found Pentagon " + f);
+        pentagons[cellCounter.getAndIncrement()]  = populateCell(f, f % 4 == 0 ? Sphere.initiatorKey18Percent : Sphere.initiatorKey82Percent, vertexMap, currentVertexIndex);
+      }
+    });
+
+    return pentagons;
+  }
+
+  public boolean isPentagon(int cellIndex) {
     return (cellIndex < 2) || (getSxy(cellIndex)[2] == 0 && ((getSxy(cellIndex)[1] + 1) % sphereDivisions) == 0);
   }
 

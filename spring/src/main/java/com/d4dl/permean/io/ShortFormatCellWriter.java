@@ -1,10 +1,11 @@
 package com.d4dl.permean.io;
 
+import com.d4dl.permean.data.Cell;
 import com.d4dl.permean.mesh.ProgressReporter;
 import com.d4dl.permean.data.Vertex;
 import java.nio.ByteBuffer;
 
-public class ShortFormatCellWriter extends CellWriter {
+public class ShortFormatCellWriter extends AbstractCellWriter {
 
   public ShortFormatCellWriter(ProgressReporter reporter, String fileName) {
     super(reporter, fileName);
@@ -35,4 +36,5 @@ public class ShortFormatCellWriter extends CellWriter {
     return ByteBuffer.allocateDirect((vertexCount * VERTEX_BYTE_SIZE_SHORT) // The lat longs
     );
   }
+
 }
