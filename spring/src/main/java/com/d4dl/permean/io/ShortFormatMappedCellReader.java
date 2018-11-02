@@ -16,7 +16,7 @@ import java.util.UUID;
 /**
  * Using this class requires that the first 12 pentagons are the first 12 cells in the cell section of the file.
  */
-public class ShortFormatMappedCellReader extends CellReader {
+public class ShortFormatMappedCellReader extends AbstractCellReader {
 
   //Used to determine which buffer to look cells up from.
   private static final int CELL_BUFFER_LIMIT = 51121212;

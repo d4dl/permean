@@ -1,15 +1,13 @@
 package com.d4dl.permean.io;
 
-import com.d4dl.permean.data.Vertex;
 import java.io.BufferedInputStream;
 import java.io.DataInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
-import java.util.UUID;
 import java.util.zip.GZIPInputStream;
 
-public abstract class DataInputCellReader extends CellReader {
+public abstract class DataInputCellReader extends AbstractCellReader {
 
   private DataInputStream in;
 
