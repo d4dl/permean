@@ -19,6 +19,7 @@ public abstract class CellWriter extends DataIO {
   protected String fileOut;
   protected FileChannel cellFileChannel = null;
   protected FileChannel vertexFileChannel = null;
+  private final SizeManager sizeManager = new SizeManager();
 
   protected CellWriter(String reporterName, String fileOut) {
     super(reporterName);
@@ -77,7 +78,7 @@ public abstract class CellWriter extends DataIO {
 
 
   public void setCountsAndStartWriting(int cellCount, int vertexCount) {
-    long vertexFileOffset = getVertexFileOffset(vertexCount);
+    long vertexFileOffset = sizeManager.getVertexFileOffset(vertexCount);
 
     setCellCount(cellCount);
     setVertexCount(vertexCount);
@@ -85,12 +86,6 @@ public abstract class CellWriter extends DataIO {
     writeCounts(cellCount, vertexCount);
   }
 
-
-  protected long getVertexFileOffset(long vertexCount) {
-    long vertexFileOffset;
-    vertexFileOffset = vertexCount * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
-    return vertexFileOffset;
-  }
 
 
   private void writeCounts(int cellCount, int vertexCount) {

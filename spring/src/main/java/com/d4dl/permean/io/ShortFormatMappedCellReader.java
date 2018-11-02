@@ -1,9 +1,10 @@
 package com.d4dl.permean.io;
 
+import static com.d4dl.permean.io.SizeManager.LAT_LNG_SIZE;
+import static com.d4dl.permean.mesh.CellGenerator.EUCLID_DETERMINED_PENTAGONS_IN_A_TRUNCATED_ICOSOHEDRON;
 import static com.d4dl.permean.mesh.Sphere.initiatorKey18Percent;
 import static com.d4dl.permean.mesh.Sphere.initiatorKey82Percent;
 
-import com.d4dl.permean.data.Vertex;
 import com.d4dl.permean.mesh.MeshCell;
 import java.io.File;
 import java.io.IOException;
@@ -12,12 +13,17 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.UUID;
 
+/**
+ * Using this class requires that the first 12 pentagons are the first 12 cells in the cell section of the file.
+ */
 public class ShortFormatMappedCellReader extends CellReader {
 
   //Used to determine which buffer to look cells up from.
-  private static final int CELL_BUFFER_LIMIT = 2261;
+  private static final int CELL_BUFFER_LIMIT = 51121212;
+  //private static final int CELL_BUFFER_LIMIT = 2000;
+  private final SizeManager sizeManager = new SizeManager();
 
-  public static final int LAT_LNG_SIZE = 2 * Float.BYTES;
+
   // protected FileChannel cellFileChannel = null;
   protected FileChannel allCellFileChannel = null;
   protected FileChannel vertexFileChannel = null;
@@ -27,9 +33,11 @@ public class ShortFormatMappedCellReader extends CellReader {
   private ByteBuffer latLngBuffer = ByteBuffer.allocateDirect(LAT_LNG_SIZE);
   private ByteBuffer indexBuffer6 = ByteBuffer.allocateDirect(6 * Integer.BYTES);
   private ByteBuffer indexBuffer5 = ByteBuffer.allocateDirect(5 * Integer.BYTES);
+  //Pentagons are first so they get their own buffer.
+  private ByteBuffer pentagonBuffer = ByteBuffer.allocateDirect(sizeManager.getCellFileSize(5) * EUCLID_DETERMINED_PENTAGONS_IN_A_TRUNCATED_ICOSOHEDRON);
   private ByteBuffer countBuffer = ByteBuffer.allocateDirect(Integer.BYTES);
   private int cellBufferOffset = 0;
-  private ByteBuffer lastBuffer = null;
+  private int currentBufferIndex;
 
   public ShortFormatMappedCellReader(String reporterName, String fileName) {
     super(reporterName, fileName);
@@ -38,21 +46,30 @@ public class ShortFormatMappedCellReader extends CellReader {
 
   @Override
   protected MeshCell nextCell(int cellIndex) throws IOException {
-    int bufferIndex = cellIndex / CELL_BUFFER_LIMIT;
-    ByteBuffer cellBuffer = cellData[bufferIndex];
-    if (cellBuffer != lastBuffer) {
+    ByteBuffer cellBuffer = cellData[currentBufferIndex];
+    if (cellBufferOffset == cellBuffer.limit()) {
       cellBufferOffset = 0;
-      lastBuffer = cellBuffer;
+      try {
+          currentBufferIndex++;
+          cellBuffer = cellData[currentBufferIndex];
+      } catch (Exception e) {
+        e.printStackTrace();
+        throw new RuntimeException(e);
+      }
     }
-    cellBuffer.position(cellBufferOffset);
-    //cellFileChannel.read(cellBuffer);
-    long uuidMSB = cellBuffer.getLong(cellBufferOffset);
+
+    long uuidMSB = 0;
+    try {
+      uuidMSB = cellBuffer.getLong(cellBufferOffset);
+    } catch (Exception e) {
+      e.printStackTrace();
+    }
     long uuidLSB = cellBuffer.getLong(cellBufferOffset + 1);
     UUID cellId = new UUID(uuidMSB, uuidLSB);
     int initiator = cellBuffer.get(16);
     int vertexCount = cellBuffer.get(17);
     int[] vertices = getVertexIndices(cellBuffer, cellBufferOffset + 18, vertexCount);
-    cellBufferOffset += getCellFileSize(vertexCount);
+    cellBufferOffset += sizeManager.getCellFileSize(vertexCount);
 
     if (initiator == 0) {
       initiator82Count++;
@@ -139,22 +156,26 @@ public class ShortFormatMappedCellReader extends CellReader {
     //Do nothing as this will just read vertexes from the file at the specified index
     vertexFileOffset = vertexCount * (long) VERTEX_BYTE_SIZE_SHORT + (long) VERTEX_AND_CELL_COUNT_SIZE;
     allCellFileChannel.position(vertexFileOffset);
-    int bufferCount = cellCount / CELL_BUFFER_LIMIT + 1;
-    cellData = new ByteBuffer[bufferCount];
-    for (int i=0; i < bufferCount; i++) {
-      int bufferCellCount;
-      if (i < bufferCount - 1) {
-        bufferCellCount = CELL_BUFFER_LIMIT;
+    int hexagonCount = cellCount - EUCLID_DETERMINED_PENTAGONS_IN_A_TRUNCATED_ICOSOHEDRON;
+    int hexBufferCount = hexagonCount / CELL_BUFFER_LIMIT + 1;
+    cellData = new ByteBuffer[hexBufferCount + 1];
+    cellData[0] = pentagonBuffer;//Pentagons are first
+    for (int i=1; i <= hexBufferCount; i++) {
+      int hexBufferCellCount;
+      if (i < hexBufferCount) {
+        hexBufferCellCount = CELL_BUFFER_LIMIT;
       } else {
-        bufferCellCount = cellCount % CELL_BUFFER_LIMIT;
+        hexBufferCellCount = hexagonCount % CELL_BUFFER_LIMIT;
       }
-      int cellsFileSize = getCellsFileSize(bufferCellCount);
+      int cellsFileSize = sizeManager.getHexagoncellsFileSize(hexBufferCellCount);
       cellData[i] = ByteBuffer.allocateDirect(cellsFileSize);
     }
     allCellFileChannel.read(cellData);
 
     for (int i=0; i < cellData.length; i++) {
-      cellData[i].flip();
+      if(cellData[i].position() != 0) {
+        cellData[i].flip();
+      }
     }
 
     /**
@@ -173,21 +194,4 @@ public class ShortFormatMappedCellReader extends CellReader {
      **/
   }
 
-  public int getCellFileSize(int vertexCount) {
-    int idSize = Long.BYTES + Long.BYTES;
-    int initiatorAndCellCountSize = Byte.BYTES + Byte.BYTES;
-    int cellSize = idSize + getVertexRefFileSize(vertexCount) + initiatorAndCellCountSize;
-
-    return cellSize;
-  }
-
-  public int getCellsFileSize(int cellCount) {
-    int pentagonsSize = 12 * getCellFileSize(5);
-    int hexagonsSize = (cellCount - 12) * getCellFileSize(6);
-    return pentagonsSize + hexagonsSize;
-  }
-
-  private int getVertexRefFileSize(int vertexCount) {
-    return Integer.BYTES * vertexCount;
-  }
 }
