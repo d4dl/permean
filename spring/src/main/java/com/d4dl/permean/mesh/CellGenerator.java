@@ -77,7 +77,7 @@ public class CellGenerator {
         Position firstPos = barycenters[cellIndex];
         Position secondPos = barycenters[firstAdjacentIndex];
         Position thirdPos = barycenters[secondAdjacentIndex];
-        Position centroid = firstPos.centroid(cellIndex, secondPos, thirdPos);
+        Position centroid = firstPos.centroid(secondPos, thirdPos);
         if (currentVertexIndex != null) {
           int vertexIndex = currentVertexIndex.getAndIncrement();
           // A vertex with the same id may be created more than once.  But it shouldn't be persisted more than once.

@@ -1,5 +1,9 @@
 package com.d4dl.permean.data;
 
+import static com.d4dl.permean.mesh.Position.LAT_CONVERT;
+import static java.lang.StrictMath.PI;
+
+import com.d4dl.permean.mesh.Position;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.UUID;
 import lombok.Data;
@@ -69,5 +73,41 @@ public class Vertex extends BasicEntity {
     public short access() {
         accessCount++;
         return accessCount;
+    }
+
+
+    public double getφ() {
+        return latitude / LAT_CONVERT;
+    }
+
+    public double getλ() {
+        return (longitude / 180) * PI;
+    }
+
+    public Position getPosition() {
+        return new Position(getφ(), getλ());
+    }
+
+    public static void main(String args[]) {
+        Position p1 = new Position(-.53, -PI / 6.7);
+        Vertex v1 = p1.getVertex();
+
+        Position p2 = v1.getPosition();
+        Vertex v2 = p2.getVertex();
+
+        Position p3 = v2.getPosition();
+        Vertex v3 = p3.getVertex();
+
+        Position p4 = v3.getPosition();
+        Vertex v4 = p4.getVertex();
+
+        Position p5 = v4.getPosition();
+        Vertex v5 = p5.getVertex();
+
+        Position p6 = v5.getPosition();
+        Vertex v6 = p6.getVertex();
+
+        Position p7 = v6.getPosition();
+        Vertex v7 = p7.getVertex();
     }
 }

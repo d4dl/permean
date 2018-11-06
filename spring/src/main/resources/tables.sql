@@ -12,7 +12,7 @@ CREATE TABLE cell (
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE vertex (
-  id        CHAR(36) NOT NULL,
+  id        NUMERIC NOT NULL,
   latitude  FLOAT       NOT NULL,
   longitude FLOAT       NOT NULL,
   PRIMARY KEY (id)
@@ -20,7 +20,7 @@ CREATE TABLE vertex (
 
 CREATE TABLE cell_vertices (
   cell_id     CHAR(36) NOT NULL,
-  vertices_id VARCHAR(255) NOT NULL,
+  vertices_id NUMERIC NOT NULL,
   sequence    INTEGER      NOT NULL,
   PRIMARY KEY (cell_id, sequence)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;

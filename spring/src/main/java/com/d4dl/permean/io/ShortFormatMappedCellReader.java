@@ -11,6 +11,8 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -44,6 +46,7 @@ public class ShortFormatMappedCellReader extends AbstractCellReader {
     initializeChannels(fileName);
   }
 
+
   @Override
   protected MeshCell nextCell(int cellIndex) throws IOException {
     ByteBuffer cellBuffer = cellData[currentBufferIndex];
@@ -66,6 +69,7 @@ public class ShortFormatMappedCellReader extends AbstractCellReader {
     }
     long uuidLSB = cellBuffer.getLong(cellBufferOffset + 1);
     UUID cellId = new UUID(uuidMSB, uuidLSB);
+
     int initiator = cellBuffer.get(16);
     int vertexCount = cellBuffer.get(17);
     int[] vertices = getVertexIndices(cellBuffer, cellBufferOffset + 18, vertexCount);

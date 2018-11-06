@@ -4,7 +4,9 @@ import com.d4dl.permean.data.Vertex;
 import com.d4dl.permean.mesh.positiontree.LatComparable;
 
 import java.io.Serializable;
+import org.jetbrains.annotations.NotNull;
 
+import static com.d4dl.permean.mesh.BarycenterBuilder.calculateBaryCenter;
 import static java.lang.StrictMath.*;
 
 /**
@@ -102,39 +104,11 @@ public class Position implements Serializable, LatComparable {
     /**
      * Returns the center of the triangle formed by this point and the other 2
      */
-    public Position centroid(int index, Position other1, Position other2) {
+    public Position centroid(Position other1, Position other2) {
         Position[] triangle = new Position[]{this, other1, other2};
-        int n = triangle.length;
-        double sum_x = 0;
-        double sum_z = 0;
-        double sum_y = 0;
-        StringBuffer buffer = new StringBuffer();
-
-        for (int i = 0; i < n; i += 1) {
-            Position current = triangle[i];
-            double i_φ = current.getφ();
-            double i_λ = current.getλ();
-
-            buffer.append("[").append(i_φ).append(", ");
-            buffer.append(i_λ).append("]");
-
-            sum_x += cos(i_φ) * cos(i_λ);
-            sum_z += cos(i_φ) * sin(i_λ);
-            sum_y += sin(i_φ);
-        }
-
-        double x = sum_x / n;
-        double z = sum_z / n;
-        double y = sum_y / n;
-
-        double r = sqrt(x * x + z * z + y * y);
-
-        double φ = asin(y / r);
-        double λ = atan2(z, x);
-
-        //System.out.println("Creating centroid at " + index + " " + φ + ", " + λ + " from " + buffer);
-        return new Position(φ, λ);
+        return calculateBaryCenter(triangle);
     }
+
 
     public double getλ() {
         return λ;
@@ -153,6 +127,10 @@ public class Position implements Serializable, LatComparable {
 
     public double getLng() {
         return 180 * (λ / PI);
+    }
+
+    public Vertex getVertex() {
+        return new Vertex(null, (float)getLat(), (float)getLng());
     }
     /**
      * Either compareTo using lat or lng if alt is true.

@@ -2,10 +2,16 @@ package com.d4dl.permean.mesh;
 
 import static java.lang.StrictMath.PI;
 import static java.lang.StrictMath.acos;
+import static java.lang.StrictMath.asin;
+import static java.lang.StrictMath.atan2;
+import static java.lang.StrictMath.cos;
+import static java.lang.StrictMath.sin;
 import static java.lang.StrictMath.sqrt;
 
+import com.d4dl.permean.data.Vertex;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import org.jetbrains.annotations.NotNull;
 
 public class BarycenterBuilder {
 
@@ -153,4 +159,45 @@ public class BarycenterBuilder {
     }
   }
 
+
+  public static Position calculateBaryCenter(Vertex[] polygon) {
+    Position[] positions = new Position[polygon.length];
+    for (int i=0; i < positions.length; i++) {
+      positions[i] = polygon[i].getPosition();
+    }
+    return calculateBaryCenter(positions);
+  }
+
+  public static Position calculateBaryCenter(Position[] polygon) {
+    int n=polygon.length;
+    double sum_x = 0;
+    double sum_z = 0;
+    double sum_y = 0;
+    //StringBuffer buffer = new StringBuffer();
+
+    for (int i = 0; i < n; i += 1) {
+      Position current = polygon[i];
+      double i_φ = current.getφ();
+      double i_λ = current.getλ();
+
+      //buffer.append("[").append(i_φ).append(", ");
+      //buffer.append(i_λ).append("]");
+
+      sum_x += cos(i_φ) * cos(i_λ);
+      sum_z += cos(i_φ) * sin(i_λ);
+      sum_y += sin(i_φ);
+    }
+
+    double x = sum_x / n;
+    double z = sum_z / n;
+    double y = sum_y / n;
+
+    double r = sqrt(x * x + z * z + y * y);
+
+    double φ = asin(y / r);
+    double λ = atan2(z, x);
+
+    //System.out.println("Creating centroid at " + index + " " + φ + ", " + λ + " from " + buffer);
+    return new Position(φ, λ);
+  }
 }

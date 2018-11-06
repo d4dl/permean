@@ -101,7 +101,7 @@ public class DatabaseLoader implements CommandLineRunner {
         System.out.println("Closed writers. Wrote " + wroteCells + " cells and " + wroteVertices + " vertices");
     }
 
-    public void add(Cell cell) throws Exception {
+    public void add(Cell cell) {
         StatementWriter writer = getFileWriter();
         writer.add(cell);
     }
@@ -113,7 +113,7 @@ public class DatabaseLoader implements CommandLineRunner {
         final boolean OFFLINE = Boolean.parseBoolean(System.getProperty("offline"));
         final boolean WRITE_FILES = Boolean.parseBoolean(System.getProperty("writeFiles"));
         if(writer == null) {
-            writer = new StatementWriter(this.parentSize, OFFLINE, WRITE_FILES);
+            writer = new StatementWriter(this.parentSize, OFFLINE, WRITE_FILES, "localhost", "plm", "root", null);
             writers.put(name, writer);
         }
         return writer;

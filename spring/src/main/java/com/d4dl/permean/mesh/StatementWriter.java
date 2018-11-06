@@ -9,7 +9,9 @@ import java.io.IOException;
 import java.io.Writer;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Created by joshuadeford on 6/6/17.
@@ -39,7 +41,7 @@ public class StatementWriter {
      * @param parentSize
      * @param offlineMode don't really write anything.
      */
-    public StatementWriter(int parentSize, boolean offlineMode, boolean writeFiles) {
+    public StatementWriter(int parentSize, boolean offlineMode, boolean writeFiles, String dbHost, String db, String userName, String password) {
         this.parentSize = parentSize;
         this.offlineMode = offlineMode;
         this.writeFiles = writeFiles;
@@ -48,7 +50,7 @@ public class StatementWriter {
         cellFileChannel = getFileWriter(threadName, "cells");
         vertexFileChannel = getFileWriter(threadName, "vertices");
         //joinConnection = getConnection(threadName, "cell_vertices");
-        cellConnection = getConnection();
+        cellConnection = getConnection(dbHost, db, userName, password);
         //vertexConnection = getConnection(threadName, "vertices");
     }
 
@@ -73,6 +75,8 @@ public class StatementWriter {
     }
 
     private void closeConnection(Connection conn) throws SQLException {
+        completeVertices();
+        completeCells();
         conn.commit();
         conn.close();
     }
@@ -86,22 +90,27 @@ public class StatementWriter {
         }
     }
 
-    public void completeCells() throws Exception {
+    public void completeCells() {
         doCells(true);
-        cellConnection.commit();
+        try {
+            cellConnection.commit();
+        } catch (SQLException e) {
+          throw new RuntimeException(e);
+        }
     }
 
     private void doVertices() {
         doVertices(false);
     }
 
-    private void doCells() throws Exception {
+    private void doCells() {
         doCells(false);
     }
 
-    private void doCells(boolean force) throws Exception {
+    private void doCells(boolean force) {
         //For hexagons there will be 7 inserts for each cell
         if (!offlineMode && ((force && cells.size() > 0) || cells.size() > BATCH_SIZE / 7 )) {
+            doVertices(true);
             try (PreparedStatement cellStmt = cellConnection.prepareStatement(CELL_INSERT); PreparedStatement joinStmt = cellConnection.prepareStatement(JOIN_INSERT)) {
                 for (Cell cell : cells) {
                     addVertexValues(joinStmt, cell);
@@ -119,6 +128,7 @@ public class StatementWriter {
             } catch (Exception e) {
                 e.printStackTrace();
                 System.out.println("Caught an exception writing cells: " + e.getMessage() + " The query will be retried.");
+                throw new RuntimeException(e);
             }
         }
     }
@@ -128,7 +138,7 @@ public class StatementWriter {
             if (!offlineMode && ((force && vertices.size() > 0) || vertices.size() > BATCH_SIZE)) {
                 try (PreparedStatement stmt = cellConnection.prepareStatement(VERTEX_INSERT)) {
                     for (Vertex vertex : vertices) {
-                        stmt.setString(1, vertex.getId().toString());
+                        stmt.setInt(1, vertex.getIndex());
                         stmt.setFloat(2, vertex.getLatitude());
                         stmt.setFloat(3, vertex.getLongitude());
                         stmt.addBatch();
@@ -151,7 +161,7 @@ public class StatementWriter {
             for (int i = 0; i < cell.getVertices().length; i++) {
                 Vertex vertex = cell.getVertices()[i];
                 joinStmt.setString(1, cell.getId().toString());
-                joinStmt.setString(2, vertex.getId().toString());
+                joinStmt.setInt(2, vertex.getIndex());
                 joinStmt.setInt(3, i);
                 joinStmt.addBatch();
             }
@@ -160,14 +170,13 @@ public class StatementWriter {
         }
     }
 
-    public void add(Cell cell) throws Exception {
+    public void add(Cell cell) {
         cells.add(cell);
         doCells();
     }
 
     public void add(Vertex vertex) {
         vertices.add(vertex);
-        doVertices();
     }
 
     private Writer getFileWriter(String threadName, String typeName) {
@@ -188,30 +197,27 @@ public class StatementWriter {
         }
     }
 
-    private Connection getConnection() {
-        if(!offlineMode) {
-            try {
-                //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm2";
-                String connectionURL = "jdbc:mysql://localhost:3306/plm2?dontCheckOnDuplicateKeyUpdateInSQL=true";
-                System.out.println("Getting connection for " + connectionURL);
-                Connection con = DriverManager.getConnection(connectionURL, "finley", "some_pass");
-                con.setAutoCommit(false);
-                try (Statement stmt = con.createStatement()) {
-                    //System.out.println(sql);
-                    stmt.execute("SET unique_checks=0");
-                    stmt.execute("SET foreign_key_checks=0");
-                    con.commit();
-                } catch (Exception e) {
-                    e.printStackTrace();
-                    throw new RuntimeException("Error getting connection");
-                }
-                //System.out.println("Created a connection to " + connectionURL);
-                return con;
+
+    private static Connection getConnection(String dbHost, String db, String username, String password) {
+        try {
+            //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm2";
+            String connectionURL = "jdbc:mysql://" + dbHost + ":3307/" + db+ "?dontCheckOnDuplicateKeyUpdateInSQL=TRUE&serverTimezone=UTC";
+            System.out.println("Getting connection for " + connectionURL);
+            Connection con = DriverManager.getConnection(connectionURL, username, password);
+            con.setAutoCommit(false);
+            try (Statement stmt = con.createStatement()) {
+                //System.out.println(sql);
+                // stmt.execute("SET unique_checks=0");
+                // stmt.execute("SET foreign_key_checks=0");
+                // con.commit();
             } catch (Exception e) {
-                throw new RuntimeException(e);
+                e.printStackTrace();
+                throw new RuntimeException("Error getting connection");
             }
-        } else {
-            return null;
+            //System.out.println("Created a connection to " + connectionURL);
+            return con;
+        } catch (Exception e) {
+            throw new RuntimeException(e);
         }
     }
 
