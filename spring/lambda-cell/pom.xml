@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <parent>
+    <artifactId>permean</artifactId>
+    <groupId>com.d4dl</groupId>
+    <version>0.0.1-SNAPSHOT</version>
+  </parent>
+  <packaging>jar</packaging>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+  </properties>
+  <modelVersion>4.0.0</modelVersion>
+  <artifactId>lambda-cell</artifactId>
+
+  <dependencies>
+  <dependency>
+    <groupId>com.amazonaws</groupId>
+    <artifactId>aws-lambda-java-events</artifactId>
+    <version>2.2.3</version>
+  </dependency>
+    <dependency>
+      <groupId>com.d4dl</groupId>
+      <artifactId>mesh</artifactId>
+      <version>0.0.1-SNAPSHOT</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>log4j-over-slf4j</artifactId>
+      <version>1.8.0-beta2</version>
+      <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.hibernate</groupId>
+      <artifactId>hibernate-core</artifactId>
+      <version>5.0.12.Final</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+  <plugins>
+  <plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-shade-plugin</artifactId>
+    <version>2.4.3</version>
+    <configuration>
+      <createDependencyReducedPom>true</createDependencyReducedPom>
+      <minimizeJar>false</minimizeJar>
+    </configuration>
+    <executions>
+      <execution>
+        <phase>package</phase>
+        <goals>
+          <goal>shade</goal>
+        </goals>
+      </execution>
+    </executions>
+  </plugin>
+  </plugins>
+  </build>
+
+</project>
