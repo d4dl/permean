@@ -27,17 +27,14 @@
 
   <artifactId>mesh</artifactId>
 
+
   <dependencies>
-    <!-- https://mvnrepository.com/artifact/com.amazonaws/amazon-kinesis-producer -->
+
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>amazon-kinesis-producer</artifactId>
       <version>0.12.9</version>
     </dependency>
-  <dependency>
-    <groupId>org.projectlombok</groupId>
-    <artifactId>lombok</artifactId>
-  </dependency>
     <dependency>
       <groupId>org.projectlombok</groupId>
       <artifactId>lombok</artifactId>
@@ -48,8 +45,15 @@
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>4.11</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>junit</groupId>
+      <artifactId>junit</artifactId>
+      <version>4.11</version>
     </dependency>
 
   </dependencies>
+
 
 </project>

@@ -157,7 +157,7 @@ public class Sphere {
               });
               new KMLWriter(kmlOutFile).outputKML(cells);
             } else {
-                writeCells(cellCount, reporter);
+                writeCells(cellCount);
                 stackIsDone = true;
             }
         } finally {
@@ -169,24 +169,37 @@ public class Sphere {
     }
 
 
-    public void writeCells(int cellCount, ProgressReporter progressReporter) {
-        System.out.println("Building cells.");
+    public void writeCells(int cellCount) {
         CellWriter writer;
-        if(Boolean.parseBoolean(System.getProperty("kinesis"))) {
-            writer = new KinesisWriter(progressReporter, null, 20);
-        }
-        else if(Boolean.parseBoolean(System.getProperty("noop"))) {
-            writer = new NoOpWriter(progressReporter);
-        } else {
-            writer = new ShortFormatCellWriter(progressReporter, fileOut);
-        }
-        writer.setCountsAndStartWriting(cellCount, vertexCount);
+        try {
+            System.out.println("Building cells.");
+            if(Boolean.parseBoolean(System.getProperty("kinesis"))) {
+                if (reporter != null) {
+                    reporter.stop();
+                }
 
-        writeCells(cellCount, writer, true);
-        System.out.println("\n\nWrote the pentagons");
-        writeCells(cellCount, writer, false);
-        System.out.println("Finished building cells.");
-        reporter.report();
+                reporter = new ProgressReporter("Kinesis Writer", cellCount, vertexCount, vertexCache);
+                reporter.start();
+                writer = new KinesisWriter(reporter, System.getProperty("cellStream"), System.getProperty("vertexStream"), cellCount, vertexCount);
+            }
+            else if(Boolean.parseBoolean(System.getProperty("noop"))) {
+                writer = new NoOpWriter(reporter);
+            } else {
+                writer = new ShortFormatCellWriter(reporter, fileOut);
+            }
+            writer.setCountsAndStartWriting(cellCount, vertexCount);
+
+            writeCells(cellCount, writer, true);
+            System.out.println("\n\nWrote the pentagons");
+            writeCells(cellCount, writer, false);
+            System.out.println("Finished building cells.");
+            reporter.report();
+        } catch (Exception e) {
+            e.printStackTrace();
+            if(reporter != null) {
+                reporter.stop();
+            }
+        }
     }
 
     private void writeCells(int cellCount, CellWriter writer, boolean pentagons) {

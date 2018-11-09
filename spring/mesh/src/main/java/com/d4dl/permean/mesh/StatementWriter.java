@@ -21,9 +21,9 @@ public class StatementWriter {
     private boolean writeFiles;
     List<MeshCell> cells = new ArrayList();
     List<MeshVertex> vertices = new ArrayList();
-    public static final String CELL_INSERT = "INSERT INTO cell VALUES(?, ?, ?, ?, ?)";
-    public static final String JOIN_INSERT = "INSERT INTO cell_vertices VALUES(?, ?, ?)";
-    public static final String VERTEX_INSERT = "INSERT INTO vertex VALUES(?, ?, ?)";
+    public static final String CELL_INSERT = "INSERT INTO cell (id, area, parent_size, center_latitude, center_longitude) VALUES(?, ?, ?, ?, ?)";
+    public static final String JOIN_INSERT = "INSERT INTO cell_vertices (cell_id, vertices_id, sequence) VALUES(?, ?, ?)";
+    public static final String VERTEX_INSERT = "INSERT INTO vertex (id, latitude, longitude) VALUES(?, ?, ?)";
     //Connection joinConnection;
     Connection cellConnection;
     //Connection vertexConnection;
@@ -151,7 +151,7 @@ public class StatementWriter {
         }
     }
 
-    public void persistVertices(Connection conn, MeshVertex[] vertices) throws SQLException {
+    public void persistVertices(Connection conn, MeshVertex[] vertices) {
         try (PreparedStatement stmt = conn.prepareStatement(VERTEX_INSERT)) {
             for (MeshVertex vertex : vertices) {
                 stmt.setInt(1, vertex.getIndex());

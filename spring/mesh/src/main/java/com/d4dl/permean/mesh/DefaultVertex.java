@@ -44,6 +44,11 @@ public class DefaultVertex implements MeshVertex {
         this.longitude = Math.abs(longitude) < tiny ? 0 : longitude;
     }
 
+    public DefaultVertex(int index, float lat, float lng) {
+        this(null, lat, lng);
+        this.index = index;
+    }
+
     public String kmlString(int height) {
         return "              " + longitude + "," +  latitude + "," + height;
         //return "φ: " + φ + ", λ: " + λ;
@@ -55,7 +60,7 @@ public class DefaultVertex implements MeshVertex {
 
     public String toString() {
       StringBuffer buffer = new StringBuffer();
-      buffer.append("[").append(this.latitude).append(",").append(this.longitude).append("]");
+      buffer.append(this.index).append(" [").append(this.latitude).append(",").append(this.longitude).append("]");
       return buffer.toString();
     }
 

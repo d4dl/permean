@@ -82,7 +82,7 @@ public abstract class AbstractCellWriter extends DataIO implements CellWriter {
     }
   }
 
-  private void writeVertices(MeshCell cell) throws IOException {
+  private void writeVertices(MeshCell cell) {
     MeshVertex[] vertices = cell.getVertices();
     List<MeshVertex> verticesToPersist = new ArrayList(vertices.length);
     for (MeshVertex vertex : vertices) {
@@ -97,7 +97,7 @@ public abstract class AbstractCellWriter extends DataIO implements CellWriter {
     if (vertices.size() == 0) {
       return;
     }
-    ByteBuffer buffer = cellBufferBuilder.fillVertexBuffer(vertices);
+    ByteBuffer buffer = cellBufferBuilder.fillVertexBuffer(vertices, false);
 
     incrementVerticesWritten(vertices.size());
     buffer.flip();

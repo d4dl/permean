@@ -2,6 +2,9 @@ package com.d4dl.permean.io;
 
 import com.amazonaws.services.kinesis.producer.KinesisProducer;
 import com.amazonaws.services.kinesis.producer.KinesisProducerConfiguration;
+import com.d4dl.permean.io.CellBufferBuilder;
+import com.d4dl.permean.io.CellWriter;
+import com.d4dl.permean.io.DataIO;
 import com.d4dl.permean.mesh.MeshCell;
 import com.d4dl.permean.mesh.MeshVertex;
 import com.d4dl.permean.mesh.ProgressReporter;
@@ -9,35 +12,40 @@ import java.nio.ByteBuffer;
 
 public class KinesisWriter extends DataIO implements CellWriter {
 
+  private final String cellStream;
+  private final String vertexStream;
   private int currentPersistentVertexIndex;
   private KinesisProducer kinesisCellProducer;
   private KinesisProducer kinesisVertexProducer;
   private final CellBufferBuilder cellBufferBuilder = new CellBufferBuilder();
 
-  public KinesisWriter(ProgressReporter reporter, String endpoint, int maxConnections) {
+  public KinesisWriter(ProgressReporter reporter, String cellStream, String vertexStream, int cellCount, int vertexCount) {
     super(reporter);
+    this.cellStream = cellStream;
+    this.vertexStream = vertexStream;
+    String cellNamespace = "JED" + this.cellStream + "Metrics" + cellCount;
     KinesisProducerConfiguration cellConfig = new KinesisProducerConfiguration()
-        .setRecordMaxBufferedTime(3000)
-        .setMetricsNamespace("cellStream")
-        .setMaxConnections(maxConnections)
         .setRequestTimeout(60000)
+        .setMetricsNamespace(cellNamespace)
         .setAggregationEnabled(true)
-        .setCollectionMaxCount(12)
-        .setKinesisEndpoint(endpoint)
         .setMetricsGranularity("stream")
         .setRegion("us-east-1");
 
+    String vertexNamespace = "JED" + this.vertexStream + "Metrics" + vertexCount;
     KinesisProducerConfiguration vertexConfig = new KinesisProducerConfiguration()
-        .setRecordMaxBufferedTime(3000)
-        .setMetricsNamespace("vertexStream")
-        .setMaxConnections(maxConnections)
+        .setMetricsNamespace(vertexNamespace)
         .setRequestTimeout(60000)
         .setAggregationEnabled(true)
-        .setCollectionMaxCount(12)
-        .setKinesisEndpoint(endpoint)
         .setMetricsGranularity("stream")
         .setRegion("us-east-1");
 
+    System.out.println("Initialized kinesis writers to '"
+        + this.cellStream
+        + "' and '"
+        + this.vertexStream
+        + "'. Logs are in the namespaces: '"
+        + cellNamespace
+        + "' and '" + vertexNamespace + "'");
     kinesisVertexProducer = new KinesisProducer(vertexConfig);
     kinesisCellProducer = new KinesisProducer(cellConfig);
   }
@@ -45,7 +53,7 @@ public class KinesisWriter extends DataIO implements CellWriter {
   @Override
   public int writeCell(int index, MeshCell cell) {
     ByteBuffer cellBuffer = cellBufferBuilder.fillCellBuffer(cell, true);//46 bytes
-    addRecord(cellBuffer, kinesisCellProducer, "cellStream", cell.getId().toString());
+    addRecord(cellBuffer, kinesisCellProducer, this.cellStream, cell.getId().toString());
     //The consecutive vertices should be persisted.  The non-consecutive ones were either already
     //persisted or will be later
     MeshVertex[] vertices = cell.getVertices();
@@ -54,9 +62,8 @@ public class KinesisWriter extends DataIO implements CellWriter {
       int vertexIndex = vertex.getIndex();
       if (vertexIndex == currentPersistentVertexIndex) {
         currentPersistentVertexIndex++;
-        ByteBuffer vertexBuffer = cellBufferBuilder.getVertexBuffer(1);
-        cellBufferBuilder.writeVertex(vertexBuffer, vertex);//8 bytes
-        addRecord(vertexBuffer, kinesisVertexProducer, "vertexStream", vertex.getStableKey());
+        ByteBuffer vertexBuffer = cellBufferBuilder.fillVertex(vertex, true);
+        addRecord(vertexBuffer, kinesisVertexProducer, this.vertexStream, vertex.getStableKey());
         persistedVertexCount++;
       }
     }
@@ -65,8 +72,9 @@ public class KinesisWriter extends DataIO implements CellWriter {
     return currentPersistentVertexIndex;
   }
 
-  private void addRecord(ByteBuffer vertexBuffer, KinesisProducer producer, String vertexStream, String partitionKey) {
-    producer.addUserRecord(vertexStream, partitionKey, vertexBuffer);
+
+  private void addRecord(ByteBuffer buffer, KinesisProducer producer, String stream, String partitionKey) {
+  //  producer.addUserRecord(stream, partitionKey, buffer);
   }
 
   @Override

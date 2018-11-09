@@ -4,6 +4,7 @@ DROP TABLE IF EXISTS vertex;
 
 CREATE TABLE cell (
   id          CHAR(36) NOT NULL,
+  modified TIMESTAMP,
   area        FLOAT       NOT NULL,
   parent_size INTEGER      NOT NULL,
   center_latitude FLOAT,
@@ -13,6 +14,7 @@ CREATE TABLE cell (
 
 CREATE TABLE vertex (
   id        NUMERIC NOT NULL,
+  modified TIMESTAMP,
   latitude  FLOAT       NOT NULL,
   longitude FLOAT       NOT NULL,
   PRIMARY KEY (id)

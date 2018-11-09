@@ -16,11 +16,12 @@
   <artifactId>lambda-cell</artifactId>
 
   <dependencies>
-  <dependency>
-    <groupId>com.amazonaws</groupId>
-    <artifactId>aws-lambda-java-events</artifactId>
-    <version>2.2.3</version>
-  </dependency>
+
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-lambda-java-events</artifactId>
+      <version>2.2.3</version>
+    </dependency>
     <dependency>
       <groupId>com.d4dl</groupId>
       <artifactId>mesh</artifactId>
@@ -28,38 +29,64 @@
       <scope>compile</scope>
     </dependency>
     <dependency>
-      <groupId>org.slf4j</groupId>
-      <artifactId>log4j-over-slf4j</artifactId>
-      <version>1.8.0-beta2</version>
-      <scope>compile</scope>
+      <groupId>mysql</groupId>
+      <artifactId>mysql-connector-java</artifactId>
+      <version>8.0.13</version>
     </dependency>
     <dependency>
-      <groupId>org.hibernate</groupId>
-      <artifactId>hibernate-core</artifactId>
-      <version>5.0.12.Final</version>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-lambda-java-core</artifactId>
+      <version>1.2.0</version>
+      <scope>compile</scope>
     </dependency>
   </dependencies>
 
   <build>
-  <plugins>
-  <plugin>
-    <groupId>org.apache.maven.plugins</groupId>
-    <artifactId>maven-shade-plugin</artifactId>
-    <version>2.4.3</version>
-    <configuration>
-      <createDependencyReducedPom>true</createDependencyReducedPom>
-      <minimizeJar>false</minimizeJar>
-    </configuration>
-    <executions>
-      <execution>
-        <phase>package</phase>
-        <goals>
-          <goal>shade</goal>
-        </goals>
-      </execution>
-    </executions>
-  </plugin>
-  </plugins>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>2.4.3</version>
+        <configuration>
+          <createDependencyReducedPom>true</createDependencyReducedPom>
+          <minimizeJar>false</minimizeJar>
+          <artifactSet>
+            <excludes>
+              <exclude>com.amazonaws:amazon-kinesis-producer:*</exclude>
+              <exclude>com.google.guava:guava:*</exclude>
+              <exclude>junit:*</exclude>
+              <exclude>jmock:*</exclude>
+              <exclude>*:xml-apis</exclude>
+              <exclude>org.apache.maven:lib:*</exclude>
+              <exclude>log4j:log4j:*</exclude>
+              <exclude>commons-io:commons-io:*</exclude>
+              <exclude>commons-lang:commons-lang:*</exclude>
+              <exclude>com.amazonaws:aws-java-sdk-core:*</exclude>
+              <exclude>commons-logging:commons-logging:*</exclude>
+              <exclude>org.apache.httpcomponents:httpclient:*</exclude>
+              <exclude>org.apache.httpcomponents:httpcore:*</exclude>
+              <exclude>commons-codec:commons-codec:*</exclude>
+              <exclude>software.amazon.ion:ion-java:*</exclude>
+              <exclude>com.fasterxml.*</exclude>
+              <exclude>junit:junit:*</exclude>
+              <exclude>org.hamcrest:hamcrest-core:*</exclude>
+              <exclude>org.slf4j:log4j-over-slf4j:*</exclude>
+              <exclude>org.slf4j:slf4j-api:*</exclude>
+              <exclude>com.google.protobuf:protobuf-java:*</exclude>
+              <exclude>org.projectlombok:lombok:*</exclude>
+            </excludes>
+          </artifactSet>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>shade</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
   </build>
 
 </project>
