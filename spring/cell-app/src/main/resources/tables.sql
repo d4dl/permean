@@ -8,22 +8,19 @@ CREATE TABLE cell (
   area        FLOAT       NOT NULL,
   parent_size INTEGER      NOT NULL,
   center_latitude FLOAT,
-  center_longitude FLOAT,
-  PRIMARY KEY (id)
+  center_longitude FLOAT
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE vertex (
   id        NUMERIC NOT NULL,
   modified TIMESTAMP,
   latitude  FLOAT       NOT NULL,
-  longitude FLOAT       NOT NULL,
-  PRIMARY KEY (id)
+  longitude FLOAT       NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 
 CREATE TABLE cell_vertices (
   cell_id     CHAR(36) NOT NULL,
   vertices_id NUMERIC NOT NULL,
-  sequence    INTEGER      NOT NULL,
-  PRIMARY KEY (cell_id, sequence)
+  sequence    INTEGER      NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1;
 

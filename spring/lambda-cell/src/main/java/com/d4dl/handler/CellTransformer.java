@@ -23,12 +23,12 @@ import java.util.UUID;
 
 public class CellTransformer {
 
-  static final StatementWriter statementWriter = new StatementWriter();
+  static final StatementWriter statementWriter = new StatementWriter(10);
 
 
   public String handleCellRequest(KinesisFirehoseEvent event) {
     StringBuffer buffer = new StringBuffer("\n");
-    System.out.println("Record Size:  " + event.getRecords().size());
+    //System.out.println("Record Size:  " + event.getRecords().size());
     List<MeshCell> cells = new ArrayList();
     Map<UUID, int[]> vertexMap = new HashMap();
     for(Record rec : event.getRecords()) {
@@ -43,7 +43,9 @@ public class CellTransformer {
 
     try (Connection connection = RDSUtil.getConnection()) {
       statementWriter.persistCells(connection, cells, vertexMap);
-      connection.commit();
+      if (connection.getAutoCommit() == false) {
+        connection.commit();
+      }
     } catch (SQLException e) {
       e.printStackTrace();
       throw new RuntimeException(e);
@@ -53,7 +55,7 @@ public class CellTransformer {
 
   public String handleVertexRequest(KinesisFirehoseEvent event) {
       StringBuffer buffer = new StringBuffer("\n");
-      System.out.println("Record Size " + event.getRecords().size());
+      //System.out.println("Record Size " + event.getRecords().size());
       List<MeshVertex> vertices = new ArrayList();
       for(Record rec : event.getRecords()) {
         ByteBuffer vertexBuffer = rec.getData();
@@ -65,12 +67,12 @@ public class CellTransformer {
         vertices.add(vertex);
         buffer.append(vertex.toString());
       }
-      System.out.println("getting connection");
     try (Connection connection = RDSUtil.getConnection()) {
-      System.out.println("Persisting vertex");
       statementWriter.persistVertices(connection, vertices.toArray(new MeshVertex[0]));
-      System.out.println("Persisted vertex");
-      connection.commit();
+
+      if (connection.getAutoCommit() == false) {
+        connection.commit();
+      }
     } catch (SQLException e) {
       e.printStackTrace();
       throw new RuntimeException(e);
@@ -99,10 +101,10 @@ public class CellTransformer {
 
 
   public void logDataIn(ByteBuffer buffer) {
-    System.out.println("Data in: pos" + buffer.position() + " limit: " + buffer.limit() + " capacity " + buffer.capacity());
+    //System.out.println("Data in: pos" + buffer.position() + " limit: " + buffer.limit() + " capacity " + buffer.capacity());
     byte[] cells = new byte[buffer.limit()];
     buffer.get(cells);
-    System.out.println("[" + Base64.getEncoder().encodeToString(cells) + "]");
+    //System.out.println("[" + Base64.getEncoder().encodeToString(cells) + "]");
     buffer.flip();
   }
 }

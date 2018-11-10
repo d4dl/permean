@@ -9,9 +9,13 @@ import com.d4dl.permean.mesh.MeshCell;
 import com.d4dl.permean.mesh.MeshVertex;
 import com.d4dl.permean.mesh.ProgressReporter;
 import java.nio.ByteBuffer;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class KinesisWriter extends DataIO implements CellWriter {
 
+  private final ExecutorService executor = Executors.newWorkStealingPool();
   private final String cellStream;
   private final String vertexStream;
   private int currentPersistentVertexIndex;
@@ -52,6 +56,9 @@ public class KinesisWriter extends DataIO implements CellWriter {
 
   @Override
   public int writeCell(int index, MeshCell cell) {
+    Future<?> future = executor.submit(() -> {
+    });
+
     ByteBuffer cellBuffer = cellBufferBuilder.fillCellBuffer(cell, true);//46 bytes
     addRecord(cellBuffer, kinesisCellProducer, this.cellStream, cell.getId().toString());
     //The consecutive vertices should be persisted.  The non-consecutive ones were either already
@@ -74,7 +81,7 @@ public class KinesisWriter extends DataIO implements CellWriter {
 
 
   private void addRecord(ByteBuffer buffer, KinesisProducer producer, String stream, String partitionKey) {
-  //  producer.addUserRecord(stream, partitionKey, buffer);
+    producer.addUserRecord(stream, partitionKey, buffer);
   }
 
   @Override

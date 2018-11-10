@@ -33,7 +33,8 @@ public class StatementWriter {
     private int wroteVerticesCount;
     private boolean offlineMode = false;
 
-    public StatementWriter() {
+    public StatementWriter(int batchSize) {
+        this.batchSize = batchSize;
     }
 
     /**
@@ -41,8 +42,8 @@ public class StatementWriter {
      * @param parentSize
      * @param offlineMode don't really write anything.
      */
-    public StatementWriter(int parentSize, boolean offlineMode, boolean writeFiles, String dbHost, String dbPort, String db, String userName, String password, int batchSize) {
-        this.batchSize = batchSize;
+    public StatementWriter(int parentSize, boolean offlineMode, boolean writeFiles, int batchSize) {
+        this(batchSize);
         this.parentSize = parentSize;
         this.offlineMode = offlineMode;
         this.writeFiles = writeFiles;
@@ -51,11 +52,11 @@ public class StatementWriter {
         cellFileChannel = getFileWriter(threadName, "cells");
         vertexFileChannel = getFileWriter(threadName, "vertices");
         //joinConnection = getConnection(threadName, "cell_vertices");
-        cellConnection = getConnection(dbHost, dbPort, db, userName, password);
+        //cellConnection = getConnection(dbHost, dbPort, db, userName, password);
         //vertexConnection = getConnection(threadName, "vertices");
     }
 
-    public void close() throws Exception {
+    public void close() {
         try {
             if(joinWriter != null) {
                 joinWriter.close();
@@ -67,7 +68,7 @@ public class StatementWriter {
         }
         try {
             //closeConnection(joinConnection);
-            closeConnection(cellConnection);
+            closeConnection(getConnection());
             //closeConnection(vertexConnection);
         } catch (Exception e) {
             e.printStackTrace();
@@ -77,29 +78,35 @@ public class StatementWriter {
 
     private void closeConnection(Connection conn) throws SQLException {
         completeCells();
-        conn.commit();
+        if (conn.getAutoCommit() == false) {
+            conn.commit();
+        }
         conn.close();
     }
 
     public void completeCells() {
         doCells(true);
         try {
-            cellConnection.commit();
+            if (getConnection().getAutoCommit() == false) {
+                getConnection().commit();
+            }
         } catch (SQLException e) {
           throw new RuntimeException(e);
         }
     }
 
-    private void doCells() {
-        doCells(false);
+    private int doCells() {
+        return doCells(false);
     }
 
-    private void doCells(boolean force) {
+    private int doCells(boolean force) {
+        int wroteCellCount = 0;
         //For hexagons there will be 7 inserts for each cell
         if (!offlineMode && ((force && cells.size() > 0) || cells.size() > batchSize )) {
-          persistCells(cellConnection, parentSize, cells, null);
+          wroteCellCount = persistCells(getConnection(), parentSize, cells, null);
           cells = new ArrayList();
         }
+        return wroteCellCount;
     }
 
   public int persistCells(Connection conn, List<MeshCell> cells, Map<UUID, int[]> vertexIndices) {
@@ -138,7 +145,7 @@ public class StatementWriter {
         try {
             if (!offlineMode && vertices.size() > 0) {
                 try {
-                    persistVertices(cellConnection, vertices.toArray(new MeshVertex[0]));
+                    persistVertices(getConnection(), vertices.toArray(new MeshVertex[0]));
                     wroteVerticesCount += vertices.size();
                     vertices = new ArrayList();
                 } catch (Exception e) {
@@ -160,7 +167,9 @@ public class StatementWriter {
                 stmt.addBatch();
             }
             stmt.executeLargeBatch();
-            conn.commit();
+            if (conn.getAutoCommit() == false) {
+                conn.commit();
+            }
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -193,9 +202,9 @@ public class StatementWriter {
         }
     }
 
-    public void add(MeshCell cell) {
+    public int add(MeshCell cell) {
         cells.add(cell);
-        doCells();
+        return doCells();
     }
 
     public void add(MeshVertex vertex) {
@@ -221,11 +230,34 @@ public class StatementWriter {
     }
 
 
-    private static Connection getConnection(String dbHost, String port, String db, String username, String password) {
+    //export RDS_DB_NAME=mesh
+    //export RDS_HOSTNAME=mesh-2768.cluster-c1gmxay4krmu.us-east-1.rds.amazonaws.com
+    //export RDS_PASSWORD=OpenSesame1
+    //export RDS_USERNAME=finley
+
+    private Connection getConnection() {
+        if (cellConnection != null) {
+            return cellConnection;
+        }
+
+        //(String dbHost, String port, String db, String username, String password)
+        String rdsPort = System.getenv("RDS_PORT");
+        if (rdsPort == null) {
+            rdsPort = "3306";
+        }
+        this.cellConnection = getConnection(System.getenv("RDS_HOSTNAME"),
+            rdsPort,
+            System.getenv("RDS_DB_NAME"),
+            System.getenv("RDS_USERNAME"),
+            System.getenv("RDS_PASSWORD"));
+        return cellConnection;
+    }
+
+    public Connection getConnection(String dbHost, String port, String db, String username, String password) {
         try {
             //String connectionURL = "jdbc:mysql://52.204.194.246:3306/plm2";
-            String connectionURL = "jdbc:mysql://" + dbHost + ":" + port + "/" + db+ "?dontCheckOnDuplicateKeyUpdateInSQL=TRUE&serverTimezone=UTC";
-            System.out.println("Getting connection for " + connectionURL);
+            String connectionURL = "jdbc:mysql://" + dbHost + ":" + port + "/" + db+ "?serverTimezone=UTC";
+            //System.out.println("Getting connection for " + connectionURL);
             Connection con = DriverManager.getConnection(connectionURL, username, password);
             con.setAutoCommit(false);
             try (Statement stmt = con.createStatement()) {

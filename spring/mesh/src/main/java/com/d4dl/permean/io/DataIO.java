@@ -67,9 +67,21 @@ public class DataIO {
     }
   }
 
+  protected void incrementCellsWritten(int count) {
+    if (reporter != null) {
+      reporter.incrementCellsWritten(count);
+    }
+  }
+
   protected void incrementCellsWritten() {
     if (reporter != null) {
       reporter.incrementCellsWritten();
+    }
+  }
+
+  public void incrementBuiltCellCount() {
+    if (reporter != null) {
+      reporter.incrementBuiltCellCount();
     }
   }
 

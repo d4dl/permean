@@ -40,6 +40,10 @@ public class ProgressReporter {
     this.cachedVertices = cachedVertices;
   }
 
+  public ProgressReporter(String name) {
+    this(name, 0, 0);
+  }
+
   public ProgressReporter(String name, int cellCount, int vertexCount) {
     this.name = name;
     this.cellCount = cellCount;
@@ -164,11 +168,16 @@ public class ProgressReporter {
   public void incrementVerticesWritten() {
     this.savedVertexCount.incrementAndGet();
   }
+
   public void incrementCellsWritten() {
+    this.incrementCellsWritten(1);
+  }
+
+  public void incrementCellsWritten(int count) {
     if (start == 0) {
       start = System.currentTimeMillis();
     }
-    this.savedCellCount.incrementAndGet();
+    this.savedCellCount.addAndGet(count);
   }
 
   public void setCellCount(int cellCount) {
